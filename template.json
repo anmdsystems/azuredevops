@@ -24,9 +24,6 @@
     },
     "serverFarmResourceGroup": {
       "type": "String"
-    },
-    "dockerRegistryPassword": {
-      "type": "SecureString"
     }
   },
     "resources": [
