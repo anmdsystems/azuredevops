@@ -61,16 +61,8 @@
             "siteConfig": {
               "appSettings": [
                 {
-                  "name": "DOCKER_REGISTRY_SERVER_URL",
-                  "value": "https://hub.docker.com/repositories/anmdsystems"
-                },
-                {
                   "name": "DOCKER_REGISTRY_SERVER_USERNAME",
                   "value": "anmdsystems"
-                },
-                {
-                  "name": "DOCKER_REGISTRY_SERVER_PASSWORD",
-                  "value": "[parameters('dockerRegistryPassword')]"
                 },
                 {
                   "name": "WEBSITES_ENABLE_APP_SERVICE_STORAGE",
