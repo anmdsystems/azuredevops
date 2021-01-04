@@ -34,3 +34,5 @@ https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.github
           Micrososft Graph - Delegated (User.Read)
       </li>
   </ul>
+
+  # Create New Linux App Service Plan - B1 or above
