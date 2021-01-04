@@ -35,4 +35,5 @@ https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.github
       </li>
   </ul>
 
-  # Create New Linux App Service Plan - B1 or above
+  # Use Existing or Create a New Linux App Service Plan - B1 or above
+      Note the App Service Plan and Resource Group.
