@@ -1,0 +1,357 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>netcoreapp3.1</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" Version="12.0.3" />
+    <PackageReference Include="System.CodeDom" Version="4.7.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="BaseTemplate\CodeGen\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Service Include="{508349b6-6b84-4df5-91f0-309beebad82d}" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Update="CodeTemplates\ActionGroups.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>ActionGroups.tt</DependentUpon>
+    </Compile>
+    <Compile Update="CodeTemplates\AFDIngressDeployment.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>AFDIngressDeployment.tt</DependentUpon>
+    </Compile>
+    <Compile Update="CodeTemplates\AfdIngressYamlCDPipeline.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>AfdIngressYamlCDPipeline.tt</DependentUpon>
+    </Compile>
+    <Compile Update="CodeTemplates\AGWIngressDeployment.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>AGWIngressDeployment.tt</DependentUpon>
+    </Compile>
+    <Compile Update="CodeTemplates\AgwIngressYamlCD.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>AgwIngressYamlCD.tt</DependentUpon>
+    </Compile>
+    <Compile Update="CodeTemplates\AzureFunctionDeployment.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>AzureFunctionDeployment.tt</DependentUpon>
+    </Compile>
+    <Compile Update="CodeTemplates\AzureFunctionDeploymentParameter.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>AzureFunctionDeploymentParameter.tt</DependentUpon>
+    </Compile>
+    <Compile Update="CodeTemplates\AzureFunctionEnvironmentGenerator.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>AzureFunctionEnvironmentGenerator.tt</DependentUpon>
+    </Compile>
+    <Compile Update="CodeTemplates\AzureFunctionYamlCDPipeline.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>AzureFunctionYamlCDPipeline.tt</DependentUpon>
+    </Compile>
+    <Compile Update="CodeTemplates\AzureStaticWebYamlCDPipeline.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>AzureStaticWebYamlCDPipeline.tt</DependentUpon>
+    </Compile>
+    <Compile Update="CodeTemplates\AzureWebJobDeployment.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>AzureWebJobDeployment.tt</DependentUpon>
+    </Compile>
+    <Compile Update="CodeTemplates\AzureWebJobDeploymentEnvironment.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>AzureWebJobDeploymentEnvironment.tt</DependentUpon>
+    </Compile>
+    <Compile Update="CodeTemplates\AzureWebJobDeploymentParameter.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>AzureWebJobDeploymentParameter.tt</DependentUpon>
+    </Compile>
+    <Compile Update="CodeTemplates\AzureWebJobYamlCDPipeline.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>AzureWebJobYamlCDPipeline.tt</DependentUpon>
+    </Compile>
+    <Compile Update="CodeTemplates\CdnProfile.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>CdnProfile.tt</DependentUpon>
+    </Compile>
+    <Compile Update="CodeTemplates\CdnProfileEnvironmentGenerator.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>CdnProfileEnvironmentGenerator.tt</DependentUpon>
+    </Compile>
+    <Compile Update="CodeTemplates\CdnProfileParameters.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>CdnProfileParameters.tt</DependentUpon>
+    </Compile>
+    <Compile Update="CodeTemplates\GitIgnore.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>GitIgnore.tt</DependentUpon>
+    </Compile>
+    <Compile Update="CodeTemplates\IngressYamlCDPipeline.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>IngressYamlCDPipeline.tt</DependentUpon>
+    </Compile>
+    <Compile Update="CodeTemplates\ReadMe.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>ReadMe.tt</DependentUpon>
+    </Compile>
+    <Compile Update="CodeTemplates\ServicePlan.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>ServicePlan.tt</DependentUpon>
+    </Compile>
+    <Compile Update="CodeTemplates\ServicePlanEnvironment.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>ServicePlanEnvironment.tt</DependentUpon>
+    </Compile>
+    <Compile Update="CodeTemplates\ServicePlanParameters.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>ServicePlanParameters.tt</DependentUpon>
+    </Compile>
+    <Compile Update="CodeTemplates\StorageAccount.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>StorageAccount.tt</DependentUpon>
+    </Compile>
+    <Compile Update="CodeTemplates\StorageAccountEnvironmentGenerator.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>StorageAccountEnvironmentGenerator.tt</DependentUpon>
+    </Compile>
+    <Compile Update="CodeTemplates\StorageAccountParameter.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>StorageAccountParameter.tt</DependentUpon>
+    </Compile>
+    <Compile Update="CodeTemplates\TmIngressYamlCD.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>TmIngressYamlCD.tt</DependentUpon>
+    </Compile>
+    <Compile Update="CodeTemplates\TrafficManagerDeployment.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>TrafficManagerDeployment.tt</DependentUpon>
+    </Compile>
+    <Compile Update="CodeTemplates\WebAzureYamlCDPipeline.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>WebAzureYamlCDPipeline.tt</DependentUpon>
+    </Compile>
+    <Compile Update="CodeTemplates\WebAzureYamlCIPipeline.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>WebAzureYamlCIPipeline.tt</DependentUpon>
+    </Compile>
+    <Compile Update="CodeTemplates\WebDeploymentEnvironmentGenerator.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>WebDeploymentEnvironmentGenerator.tt</DependentUpon>
+    </Compile>
+    <Compile Update="CodeTemplates\WebDeploymentGenerator.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>WebDeploymentGenerator.tt</DependentUpon>
+    </Compile>
+    <Compile Update="CodeTemplates\WebDeploymentParameters.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>WebDeploymentParameters.tt</DependentUpon>
+    </Compile>
+    <Compile Update="CodeTemplates\WebSiteStorageAccount.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>WebSiteStorageAccount.tt</DependentUpon>
+    </Compile>
+    <Compile Update="CodeTemplates\WebSiteStorageAccountEnvironment.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>WebSiteStorageAccountEnvironment.tt</DependentUpon>
+    </Compile>
+    <Compile Update="CodeTemplates\WebSiteStorageAccountParameter.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>WebSiteStorageAccountParameter.tt</DependentUpon>
+    </Compile>
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="CodeTemplates\ActionGroups.tt">
+      <Generator>TextTemplatingFilePreprocessor</Generator>
+      <LastGenOutput>ActionGroups.cs</LastGenOutput>
+    </None>
+    <None Update="CodeTemplates\AFDIngressDeployment.tt">
+      <Generator>TextTemplatingFilePreprocessor</Generator>
+      <LastGenOutput>AFDIngressDeployment.cs</LastGenOutput>
+    </None>
+    <None Update="CodeTemplates\AfdIngressYamlCDPipeline.tt">
+      <Generator>TextTemplatingFilePreprocessor</Generator>
+      <LastGenOutput>AfdIngressYamlCDPipeline.cs</LastGenOutput>
+    </None>
+    <None Update="CodeTemplates\AgwIngressYamlCD.tt">
+      <Generator>TextTemplatingFilePreprocessor</Generator>
+      <LastGenOutput>AgwIngressYamlCD.cs</LastGenOutput>
+    </None>
+    <None Update="CodeTemplates\AzureFunctionDeploymentParameter.tt">
+      <Generator>TextTemplatingFilePreprocessor</Generator>
+      <LastGenOutput>AzureFunctionDeploymentParameter.cs</LastGenOutput>
+    </None>
+    <None Update="CodeTemplates\AzureFunctionEnvironmentGenerator.tt">
+      <Generator>TextTemplatingFilePreprocessor</Generator>
+      <LastGenOutput>AzureFunctionEnvironmentGenerator.cs</LastGenOutput>
+    </None>
+    <None Update="CodeTemplates\AzureFunctionYamlCDPipeline.tt">
+      <Generator>TextTemplatingFilePreprocessor</Generator>
+      <LastGenOutput>AzureFunctionYamlCDPipeline.cs</LastGenOutput>
+    </None>
+    <None Update="CodeTemplates\AzureFunctionDeployment.tt">
+      <Generator>TextTemplatingFilePreprocessor</Generator>
+      <LastGenOutput>AzureFunctionDeployment.cs</LastGenOutput>
+    </None>
+    <None Update="CodeTemplates\AGWIngressDeployment.tt">
+      <Generator>TextTemplatingFilePreprocessor</Generator>
+      <LastGenOutput>AGWIngressDeployment.cs</LastGenOutput>
+    </None>
+    <None Update="CodeTemplates\AzureStaticWebYamlCDPipeline.tt">
+      <Generator>TextTemplatingFilePreprocessor</Generator>
+      <LastGenOutput>AzureStaticWebYamlCDPipeline.cs</LastGenOutput>
+    </None>
+    <None Update="CodeTemplates\AzureWebJobDeployment.tt">
+      <Generator>TextTemplatingFilePreprocessor</Generator>
+      <LastGenOutput>AzureWebJobDeployment.cs</LastGenOutput>
+    </None>
+    <None Update="CodeTemplates\AzureWebJobDeploymentEnvironment.tt">
+      <Generator>TextTemplatingFilePreprocessor</Generator>
+      <LastGenOutput>AzureWebJobDeploymentEnvironment.cs</LastGenOutput>
+    </None>
+    <None Update="CodeTemplates\AzureWebJobDeploymentParameter.tt">
+      <Generator>TextTemplatingFilePreprocessor</Generator>
+      <LastGenOutput>AzureWebJobDeploymentParameter.cs</LastGenOutput>
+    </None>
+    <None Update="CodeTemplates\AzureWebJobYamlCDPipeline.tt">
+      <Generator>TextTemplatingFilePreprocessor</Generator>
+      <LastGenOutput>AzureWebJobYamlCDPipeline.cs</LastGenOutput>
+    </None>
+    <None Update="CodeTemplates\CdnProfile.tt">
+      <Generator>TextTemplatingFilePreprocessor</Generator>
+      <LastGenOutput>CdnProfile.cs</LastGenOutput>
+    </None>
+    <None Update="CodeTemplates\CdnProfileEnvironmentGenerator.tt">
+      <Generator>TextTemplatingFilePreprocessor</Generator>
+      <LastGenOutput>CdnProfileEnvironmentGenerator.cs</LastGenOutput>
+    </None>
+    <None Update="CodeTemplates\CdnProfileParameters.tt">
+      <Generator>TextTemplatingFilePreprocessor</Generator>
+      <LastGenOutput>CdnProfileParameters.cs</LastGenOutput>
+    </None>
+    <None Update="CodeTemplates\GitIgnore.tt">
+      <Generator>TextTemplatingFilePreprocessor</Generator>
+      <LastGenOutput>GitIgnore.cs</LastGenOutput>
+    </None>
+    <None Update="CodeTemplates\IngressYamlCDPipeline.tt">
+      <Generator>TextTemplatingFilePreprocessor</Generator>
+      <LastGenOutput>IngressYamlCDPipeline.cs</LastGenOutput>
+    </None>
+    <None Update="CodeTemplates\ReadMe.tt">
+      <Generator>TextTemplatingFilePreprocessor</Generator>
+      <LastGenOutput>ReadMe.cs</LastGenOutput>
+    </None>
+    <None Update="CodeTemplates\ServicePlan.tt">
+      <Generator>TextTemplatingFilePreprocessor</Generator>
+      <LastGenOutput>ServicePlan.cs</LastGenOutput>
+    </None>
+    <None Update="CodeTemplates\ServicePlanEnvironment.tt">
+      <Generator>TextTemplatingFilePreprocessor</Generator>
+      <LastGenOutput>ServicePlanEnvironment.cs</LastGenOutput>
+    </None>
+    <None Update="CodeTemplates\ServicePlanParameters.tt">
+      <Generator>TextTemplatingFilePreprocessor</Generator>
+      <LastGenOutput>ServicePlanParameters.cs</LastGenOutput>
+    </None>
+    <None Update="CodeTemplates\StorageAccount.tt">
+      <Generator>TextTemplatingFilePreprocessor</Generator>
+      <LastGenOutput>StorageAccount.cs</LastGenOutput>
+    </None>
+    <None Update="CodeTemplates\StorageAccountEnvironmentGenerator.tt">
+      <Generator>TextTemplatingFilePreprocessor</Generator>
+      <LastGenOutput>StorageAccountEnvironmentGenerator.cs</LastGenOutput>
+    </None>
+    <None Update="CodeTemplates\StorageAccountParameter.tt">
+      <Generator>TextTemplatingFilePreprocessor</Generator>
+      <LastGenOutput>StorageAccountParameter.cs</LastGenOutput>
+    </None>
+    <None Update="CodeTemplates\TmIngressYamlCD.tt">
+      <Generator>TextTemplatingFilePreprocessor</Generator>
+      <LastGenOutput>TmIngressYamlCD.cs</LastGenOutput>
+    </None>
+    <None Update="CodeTemplates\WebAzureYamlCDPipeline.tt">
+      <Generator>TextTemplatingFilePreprocessor</Generator>
+      <LastGenOutput>WebAzureYamlCDPipeline.cs</LastGenOutput>
+    </None>
+    <None Update="CodeTemplates\WebAzureYamlCIPipeline.tt">
+      <Generator>TextTemplatingFilePreprocessor</Generator>
+      <LastGenOutput>WebAzureYamlCIPipeline.cs</LastGenOutput>
+    </None>
+    <None Update="CodeTemplates\WebDeploymentEnvironmentGenerator.tt">
+      <Generator>TextTemplatingFilePreprocessor</Generator>
+      <LastGenOutput>WebDeploymentEnvironmentGenerator.cs</LastGenOutput>
+    </None>
+    <None Update="CodeTemplates\WebDeploymentGenerator.tt">
+      <Generator>TextTemplatingFilePreprocessor</Generator>
+      <LastGenOutput>WebDeploymentGenerator.cs</LastGenOutput>
+    </None>
+    <None Update="CodeTemplates\WebDeploymentParameters.tt">
+      <Generator>TextTemplatingFilePreprocessor</Generator>
+      <LastGenOutput>WebDeploymentParameters.cs</LastGenOutput>
+    </None>
+    <None Update="CodeTemplates\WebSiteStorageAccount.tt">
+      <Generator>TextTemplatingFilePreprocessor</Generator>
+      <LastGenOutput>WebSiteStorageAccount.cs</LastGenOutput>
+    </None>
+    <None Update="CodeTemplates\WebSiteStorageAccountEnvironment.tt">
+      <Generator>TextTemplatingFilePreprocessor</Generator>
+      <LastGenOutput>WebSiteStorageAccountEnvironment.cs</LastGenOutput>
+    </None>
+    <None Update="CodeTemplates\WebSiteStorageAccountParameter.tt">
+      <Generator>TextTemplatingFilePreprocessor</Generator>
+      <LastGenOutput>WebSiteStorageAccountParameter.cs</LastGenOutput>
+    </None>
+    <None Update="ngStatelessGridGenerator.t4">
+      <Generator>TextTemplatingFilePreprocessor</Generator>
+      <LastGenOutput>ngStatelessGridGenerator.cs</LastGenOutput>
+    </None>
+    <None Update="CodeTemplates\TrafficManagerDeployment.tt">
+      <Generator>TextTemplatingFilePreprocessor</Generator>
+      <LastGenOutput>TrafficManagerDeployment.cs</LastGenOutput>
+    </None>
+  </ItemGroup>
+
+  <ProjectExtensions><VisualStudio><UserProperties /></VisualStudio></ProjectExtensions>
+
+</Project>

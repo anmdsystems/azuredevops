@@ -1,0 +1,346 @@
+﻿<#@ template language="C#" #>
+<#@ assembly name="System.Core" #>
+<#@ import namespace="System.Linq" #>
+<#@ import namespace="System.Text" #>
+<#@ import namespace="System.Collections.Generic" #>
+<#@ import namespace="System" #>
+<#@ import namespace="System.IO" #>
+<#@ import namespace="System.Globalization" #>
+<#@ import namespace="Newtonsoft.Json" #>
+<#@ import namespace="Newtonsoft.Json.Converters" #>
+
+<#@ output extension=".txt" #>
+
+<#
+Deployment data = JsonConvert.DeserializeObject<Deployment>(this.deployment);
+
+var ipSecurityRestrictions = data.IpSecurityRestrictions;
+var internalNetworkName = data.InternalNetworkName;
+var application = data.TeamDisplayName;
+var applicationType = data.ApplicationType;
+var owner = data.Owner;
+var teamName = data.TeamName;
+var appName = data.Name;
+
+var stages = data.WebDeploymentStages;
+var queryStringCachingBehavior = data.QueryStringCachingBehavior ?? "IgnoreQueryString";
+
+// DO NOT WIPE THE SOURCE CODE...
+var codeGenPath = $"{this.rootTemplatePath}codegen\\";
+var blue = (isBlue) ? "-blue" : "";
+var hostName = (isBlue) ? "[parameters('AppServiceBlueSlotCustomHostname')]" : "[parameters('AppServiceCustomHostname')]";
+#>
+{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "OriginHostHeader": {
+            "defaultValue": "",
+            "type": "String"
+        },
+        "Environment" : {
+            "defaultValue": "",
+            "type": "String"
+        },
+        "AppServiceCustomHostname": {
+          "defaultValue": "",
+          "type": "String"
+        },
+        "AppServiceBlueSlotCustomHostname": {
+          "defaultValue": "",
+          "type": "String"
+        }
+    },
+    "variables": {
+        "originHost": "[replace(parameters('OriginHostHeader'),'.','-')]",
+        "environment": "[parameters('Environment')]",
+        "teamName": "<#=teamName #>",
+        "appName": "<#=appName #>",
+        "applicationType": "<#=applicationType #>",
+        "blue": "<#=blue #>",
+        "hostName": "<#=hostName #>",
+        "cdnProfileName": "[concat(variables('teamName'), '-', variables('environment'), '-', variables('appName'), '-cdn')]",
+        "cdnEndPointName": "[concat(variables('teamName'), '-', variables('environment'), '-', variables('appName'), variables('blue'), '-cdn')]"
+    },
+    "resources": [
+        {
+            "type": "Microsoft.Cdn/profiles",
+            "apiVersion": "2020-04-15",
+            "name": "[variables('cdnProfileName')]",
+            "location": "Global",
+            "sku": {
+                "name": "Standard_Microsoft"
+            },
+            "properties": {}
+        },
+        {
+            "type": "Microsoft.Cdn/profiles/endpoints",
+            "apiVersion": "2020-04-15",
+            "name": "[concat(variables('cdnProfileName'), '/', variables('cdnEndPointName'))]",
+            "location": "Global",
+            "dependsOn": [
+                "[resourceId('Microsoft.Cdn/profiles', variables('cdnProfileName'))]"
+            ],
+            "properties": {
+            "originHostHeader": "[parameters('OriginHostHeader')]",
+            "isHttpAllowed": true,
+            "isHttpsAllowed": true,
+            "queryStringCachingBehavior": "<#= queryStringCachingBehavior #>",
+            "origins": [
+              {
+                "name": "[variables('originHost')]",
+                "properties": {
+                  "hostName": "[parameters('OriginHostHeader')]",
+                  "httpPort": 80,
+                  "httpsPort": 443,
+                  "originHostHeader": "[parameters('OriginHostHeader')]",
+                  "priority": 1,
+                  "weight": 1000,
+                  "enabled": true
+                }
+              }
+            ],
+            "originGroups": [],
+            "contentTypesToCompress": [
+              "application/eot",
+              "application/font",
+              "application/font-sfnt",
+              "application/javascript",
+              "application/json",
+              "application/opentype",
+              "application/otf",
+              "application/pkcs7-mime",
+              "application/truetype",
+              "application/ttf",
+              "application/vnd.ms-fontobject",
+              "application/xhtml+xml",
+              "application/xml",
+              "application/xml+rss",
+              "application/x-font-opentype",
+              "application/x-font-truetype",
+              "application/x-font-ttf",
+              "application/x-httpd-cgi",
+              "application/x-javascript",
+              "application/x-mpegurl",
+              "application/x-opentype",
+              "application/x-otf",
+              "application/x-perl",
+              "application/x-ttf",
+              "font/eot",
+              "font/ttf",
+              "font/otf",
+              "font/opentype",
+              "image/svg+xml",
+              "text/css",
+              "text/csv",
+              "text/html",
+              "text/javascript",
+              "text/js",
+              "text/plain",
+              "text/richtext",
+              "text/tab-separated-values",
+              "text/xml",
+              "text/x-script",
+              "text/x-component",
+              "text/x-java-source"
+            ],
+            "isCompressionEnabled": true,
+            "geoFilters": [],
+            "deliveryPolicy": {
+              "rules": [
+                {
+                  "name": "Global",
+                  "order": 0,
+                  "conditions": [],
+                  "actions": [
+                    {
+                      "name": "ModifyRequestHeader",
+                      "parameters": {
+                        "@odata.type": "#Microsoft.Azure.Cdn.Models.DeliveryRuleHeaderActionParameters",
+                        "headerAction": "Append",
+                        "headerName": "Strict-Transport-Security",
+                        "value": "max-age=31536000; includeSubDomains"
+                      }
+                    },
+                    {
+                      "name": "ModifyRequestHeader",
+                      "parameters": {
+                        "@odata.type": "#Microsoft.Azure.Cdn.Models.DeliveryRuleHeaderActionParameters",
+                        "headerAction": "Append",
+                        "headerName": "X-XSS-Protection",
+                        "value": "1; mode=block"
+                      }
+                    },
+                    {
+                      "name": "ModifyRequestHeader",
+                      "parameters": {
+                        "@odata.type": "#Microsoft.Azure.Cdn.Models.DeliveryRuleHeaderActionParameters",
+                        "headerAction": "Append",
+                        "headerName": "X-Content-Type-Options",
+                        "value": "nosniff"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "HttpHeaders",
+                  "order": 1,
+                  "conditions": [
+                    {
+                      "name": "QueryString",
+                      "parameters": {
+                        "@odata.type": "#Microsoft.Azure.Cdn.Models.DeliveryRuleQueryStringConditionParameters",
+                        "operator": "Any",
+                        "negateCondition": false,
+                        "matchValues": [],
+                        "transforms": []
+                      }
+                    }
+                  ],
+                  "actions": [
+                    {
+                      "name": "ModifyRequestHeader",
+                      "parameters": {
+                        "@odata.type": "#Microsoft.Azure.Cdn.Models.DeliveryRuleHeaderActionParameters",
+                        "headerAction": "Append",
+                        "headerName": "Content-Security-Policy",
+                        "value": "default-src 'self';font-src *;img-src * data:;"
+                      }
+                    },
+                    {
+                      "name": "ModifyRequestHeader",
+                      "parameters": {
+                        "@odata.type": "#Microsoft.Azure.Cdn.Models.DeliveryRuleHeaderActionParameters",
+                        "headerAction": "Append",
+                        "headerName": "X-Content-Security-Policy",
+                        "value": "default-src 'self';font-src *;img-src * data:;"
+                      }
+                    },
+                    {
+                      "name": "ModifyRequestHeader",
+                      "parameters": {
+                        "@odata.type": "#Microsoft.Azure.Cdn.Models.DeliveryRuleHeaderActionParameters",
+                        "headerAction": "Append",
+                        "headerName": "Referrer-Policy",
+                        "value": "strict-origin"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "HttpHeader",
+                  "order": 2,
+                  "conditions": [
+                    {
+                      "name": "RequestUri",
+                      "parameters": {
+                        "@odata.type": "#Microsoft.Azure.Cdn.Models.DeliveryRuleRequestUriConditionParameters",
+                        "operator": "Any",
+                        "negateCondition": false,
+                        "matchValues": [],
+                        "transforms": []
+                      }
+                    }
+                  ],
+                  "actions": [
+                    {
+                      "name": "ModifyRequestHeader",
+                      "parameters": {
+                        "@odata.type": "#Microsoft.Azure.Cdn.Models.DeliveryRuleHeaderActionParameters",
+                        "headerAction": "Append",
+                        "headerName": "X-Content-Type-Options",
+                        "value": "nosniff"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "EnforceHttps",
+                  "order": 3,
+                  "conditions": [
+                    {
+                      "name": "RequestScheme",
+                      "parameters": {
+                        "@odata.type": "#Microsoft.Azure.Cdn.Models.DeliveryRuleRequestSchemeConditionParameters",
+                        "operator": "Equal",
+                        "negateCondition": false,
+                        "matchValues": [
+                          "HTTP"
+                        ]
+                      }
+                    }
+                  ],
+                  "actions": [
+                    {
+                      "name": "UrlRedirect",
+                      "parameters": {
+                        "@odata.type": "#Microsoft.Azure.Cdn.Models.DeliveryRuleUrlRedirectActionParameters",
+                        "redirectType": "Found",
+                        "destinationProtocol": "Https"
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            "urlSigningKeys": []
+          }
+        },
+        {
+            "type": "Microsoft.Cdn/profiles/endpoints/customdomains",
+            "apiVersion": "2020-04-15",
+            "name": "[concat(variables('cdnProfileName'), '/', variables('cdnProfileName'), '/', variables('cdnEndPointName'))]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Cdn/profiles/endpoints', variables('cdnProfileName'), variables('cdnEndPointName'))]",
+                "[resourceId('Microsoft.Cdn/profiles', variables('cdnProfileName'))]"
+            ],
+            "properties": {
+                "hostName": "[variables('hostName')]"
+            }
+        },
+        {
+            "type": "Microsoft.Cdn/profiles/endpoints/origins",
+            "apiVersion": "2020-04-15",
+            "name": "[concat(variables('cdnProfileName'), '/', variables('cdnProfileName'), '/', variables('originHost'))]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Cdn/profiles/endpoints', variables('cdnProfileName'), variables('cdnEndPointName'))]",
+                "[resourceId('Microsoft.Cdn/profiles', variables('cdnProfileName'))]"
+            ],
+            "properties": {
+                "hostName": "[parameters('OriginHostHeader')]",
+                "httpPort": 80,
+                "httpsPort": 443,
+                "enabled": true,
+                "priority": 1,
+                "weight": 1000,
+                "originHostHeader": "[parameters('OriginHostHeader')]"
+            }
+        }
+    ]
+}
+<#
+SaveOutputToSubFolder(codeGenPath, $"{data.Id}\\{data.TeamName.ToLower()}-{data.Name.ToLower()}-infra\\ArmTemplate", $"azuredeploy.cdnProfile{blue}.json");    
+#>
+
+<#+
+private void SaveOutputToSubFolder(string rootTemplatePath, string folderName, string outputFileName) {
+  string templateDirectory = Path.GetDirectoryName(rootTemplatePath.Replace('\\', Path.DirectorySeparatorChar));
+  string newDirectoryName = Path.Combine(templateDirectory,folderName.Replace('\\', Path.DirectorySeparatorChar));
+  if(!Directory.Exists(newDirectoryName))
+  {  
+	Directory.CreateDirectory(newDirectoryName);
+  }
+  string outputFilePath = Path.Combine(newDirectoryName, outputFileName.Replace('\\', Path.DirectorySeparatorChar));
+  File.WriteAllText(outputFilePath, this.GenerationEnvironment.ToString()); 
+  this.GenerationEnvironment.Remove(0, this.GenerationEnvironment.Length);
+}
+
+private readonly string deployment;
+private readonly string rootTemplatePath;
+private readonly bool isBlue;
+public CdnProfile(string deployment, string rootTemplatePath, bool isBlue) {
+    this.deployment = deployment;
+    this.rootTemplatePath = rootTemplatePath;
+    this.isBlue = isBlue;
+}
+#>

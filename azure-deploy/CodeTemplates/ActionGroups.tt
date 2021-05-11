@@ -1,0 +1,98 @@
+﻿<#@ template language="C#" #>
+<#@ assembly name="System.Core" #>
+<#@ import namespace="System.Linq" #>
+<#@ import namespace="System.Text" #>
+<#@ import namespace="System.Collections.Generic" #>
+<#@ import namespace="System" #>
+<#@ import namespace="System.IO" #>
+<#@ import namespace="System.Globalization" #>
+<#@ import namespace="Newtonsoft.Json" #>
+<#@ import namespace="Newtonsoft.Json.Converters" #>
+
+
+<#
+// DO NOT WIPE THE SOURCE CODE...
+Deployment data = JsonConvert.DeserializeObject<Deployment>(this.deployment);
+var stages = data.WebDeploymentStages;
+
+var notifications = JsonConvert.SerializeObject(
+    data.AppServicePlanAutoScaleEmailNotificationContacts.Select(s => {
+    return new NameEmail{ Name = s, EmailAddress = s };
+}));
+
+// DO NOT WIPE THE SOURCE CODE...
+var codeGenPath = $"{this.rootTemplatePath}codegen\\";
+// provision deployment stages   
+for (Int32 i = 0; i < stages.Length; ++i) {
+    var stage = stages[i];
+    var suffix = stage.ActionGroupShortName;
+    var stageFileName = $"azuredeploy.actionGroup.{stage.Name}.json";
+// TEMPLATE CODE HERE
+#>{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {},
+  "variables": {
+     "actionGroupName": "<#=suffix #>",
+     "actionGroupShortName": "<#=suffix #>"
+  }
+  "resources": [
+    {
+      "type": "Microsoft.Insights/actionGroups",
+      "apiVersion": "2018-09-01",
+      "name": "[variables('actionGroupName')]",
+      "location": "Global",
+      "properties": {
+        "groupShortName": "[variables('actionGroupShortName')]",
+        "enabled": true,
+        "emailReceivers": <#=notifications #>
+      }
+    },
+    {
+      "type": "Microsoft.Insights/actionGroups",
+      "apiVersion": "2018-09-01",
+      "name": "Application Insights Smart Detection",
+      "location": "Global",
+      "properties": {
+        "groupShortName": "SmartDetect",
+        "enabled": true,
+        "armRoleReceivers": [
+          {
+            "name": "Monitoring Contributor",
+            "roleId": "Monitoring Contributor"
+          },
+          {
+            "name": "Monitoring Reader",
+            "roleId": "Monitoring Reader"
+          }
+        ]
+      }
+    }
+  ]
+}
+<#
+// END TEMPLATE CODE
+    SaveOutputToSubFolder(codeGenPath, $"{data.Id}\\{data.TeamName.ToLower()}-{data.Name.ToLower()}-infra\\ArmTemplate", stageFileName);    
+}
+#>
+
+<#+
+private void SaveOutputToSubFolder(string rootTemplatePath, string folderName, string outputFileName) {
+  string templateDirectory = Path.GetDirectoryName(rootTemplatePath.Replace('\\', Path.DirectorySeparatorChar));
+  string newDirectoryName = Path.Combine(templateDirectory,folderName.Replace('\\', Path.DirectorySeparatorChar));
+  if(!Directory.Exists(newDirectoryName))
+  {  
+	Directory.CreateDirectory(newDirectoryName);
+  }
+  string outputFilePath = Path.Combine(newDirectoryName, outputFileName.Replace('\\', Path.DirectorySeparatorChar));
+  File.WriteAllText(outputFilePath, this.GenerationEnvironment.ToString()); 
+  this.GenerationEnvironment.Remove(0, this.GenerationEnvironment.Length);
+}
+
+private readonly string deployment;
+private readonly string rootTemplatePath;
+public ActionGroups(string deployment, string rootTemplatePath) {
+    this.deployment = deployment;
+    this.rootTemplatePath = rootTemplatePath;
+}
+#>

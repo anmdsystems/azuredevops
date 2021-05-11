@@ -1,0 +1,595 @@
+﻿<#@ template language="C#" #>
+<#@ assembly name="System.Core" #>
+<#@ import namespace="System.Linq" #>
+<#@ import namespace="System.Text" #>
+<#@ import namespace="System.Collections.Generic" #>
+<#@ import namespace="System" #>
+<#@ import namespace="System.IO" #>
+<#@ import namespace="System.Globalization" #>
+<#@ import namespace="Newtonsoft.Json" #>
+<#@ import namespace="Newtonsoft.Json.Converters" #>
+
+<#@ output extension=".txt" #>
+
+<#
+Deployment data = JsonConvert.DeserializeObject<Deployment>(this.deployment);
+
+var ipSecurityRestrictions = data.IpSecurityRestrictions;
+var internalNetworkName = data.InternalNetworkName;
+var application = data.TeamDisplayName;
+var appName = data.Name;
+var teamName = data.TeamName;
+var applicationType = data.ApplicationType;
+var owner = data.Owner;
+var resourceGroupConfigKVSuffix = data.ResourceGroupConfigKVSuffix;
+
+var stages = data.IngressDeploymentStages;
+
+// DO NOT WIPE THE SOURCE CODE...
+var codeGenPath = $"{this.rootTemplatePath}codegen\\";
+
+// provision deployment stages   
+for (Int32 i = 0; i < stages.Length; ++i) {
+	var frontendPort = "80";
+    var backendPort = "443";
+    var stage = stages[i];
+    var stageFileName = $"azuredeploy.agw.{stage.Name}.json";
+    var location = stage.DeploymentLocation;
+    var applicationGatewayName = stage.ApplicationGatewayName;
+    var dnsnamepip = $"{applicationGatewayName}-pip";
+    var connectionDrainingTimeout = stage.ConnectionDrainingTimeout;
+    var connectionDrainingEnabled = Utility.LowercaseFirst(stage.ConnectionDrainingEnabled.ToString());
+    var tier = stage.Tier;
+    var sku = stage.Sku;
+    var allocationMethod = stage.AllocationMethod;
+    var cookieBasedAffinity = stage.CookieBasedAffinity;
+    var affinityCookieName = stage.AffinityCookieName;
+    var storageaccountname = stage.Storageaccountname;
+    var storageaccountrgname = stage.Storageaccountrgname;
+    var enablediagnostics = stage.Enablediagnostics;
+    var environment = stage.Environment;
+    var certSecretName = stage.CertSecretName;
+    var vaultName = stage.CertKeyVaultName;
+    var vaultrgname = stage.CertKeyVaultRG;
+    var subnetName = stage.SubnetName;
+    var virtualNetworkResourceGroup = stage.VirtualNetworkResourceGroup;
+    var virtualNetworkName = stage.VirtualNetworkName;
+    var autoScaleMaxCapacity = stage.AutoScaleMaxCapacity;
+    var capacity = stage.Capacity;
+    var diagnosticSettingName = stage.DiagnosticSettingName;
+    var firewallMode = stage.FirewallMode;
+    var teamRg = stage.Webapprg;
+    var multiRegion = (data.IsMultiRegion) ? "[concat('-', variables('location')]" : "";
+#>{
+  "$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "KeyVaultAccessPolicies": {
+      "type": "object",
+      "defaultValue": { "list": [] },
+      "metadata": {
+        "description": "The access policies to be applied to the Key Vault. Defaults to no access policies."
+      }
+    }
+  },
+  "variables": {
+    "location": "<#=location #>",
+    "teamRg": "<#=teamRg #>",
+    "applicationGatewayName": "<#=applicationGatewayName #>",
+    "dnsnamepip": "<#=dnsnamepip #>",
+    "tier": "<#=tier #>",
+    "capacity": <#=capacity #>,
+    "sku": "<#=sku #>",
+    "allocationMethod": "<#=allocationMethod #>",
+    "frontendPort": "<#=frontendPort #>",
+    "backendPort": "<#=backendPort #>",
+    "keyVaultAccessPolicies": "[parameters('KeyVaultAccessPolicies')]",
+    "cookieBasedAffinity": "<#=cookieBasedAffinity #>",
+    "storageaccountname": "<#=storageaccountname #>",
+    "storageaccountrgname": "<#=storageaccountrgname #>",
+    "enablediagnostics": "<#=enablediagnostics #>",
+    "diagnosticSettingName": "<#=diagnosticSettingName #>",
+    "autoScaleMaxCapacity": "<#=autoScaleMaxCapacity #>",
+    "virtualNetworkName": "<#=virtualNetworkName #>",
+    "virtualNetworkResourceGroup": "<#=virtualNetworkResourceGroup #>",
+    "subnetName": "<#=subnetName #>",
+    "certSecretName": "<#=certSecretName #>",
+    "iprestrictions": "<#=ipSecurityRestrictions #>",
+    "tagEnvironment": "<#=environment #>",
+    "managedIdentityName": "[concat('<#=teamName #>', '-', '<#=environment #>', '<#=multiRegion #>', '-user-assigned')]",
+    "subnetRef": "[resourceId(variables('virtualNetworkResourceGroup'), 'Microsoft.Network/virtualNetworks/subnets', variables('virtualNetworkName'), variables('subnetName'))]",
+    "applicationGatewayID": "[resourceId('Microsoft.Network/applicationGateways',variables('applicationGatewayName'))]",
+    "appGwPublicIpName": "[concat(variables('applicationGatewayName'), '-pip')]",
+    "publicIPRef": "[resourceId('Microsoft.Network/publicIPAddresses',variables('appGwPublicIpName'))]",
+    "keyVaultResourceId": "[resourceId('<#=vaultrgname #>','Microsoft.KeyVault/vaults/secrets','<#=vaultName #>',variables('certSecretName'))]"
+  },
+  "resources": [
+    {
+      "apiVersion": "2018-11-30",
+      "name": "[variables('managedIdentityName')]",
+      "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+      "location": "[variables('location')]",
+      "properties": {
+        "mode": "Incremental"
+      }
+    },
+    {
+      "condition": "[empty(variables('keyVaultAccessPolicies').list)]",
+      "name": "[concat(variables('CertKeyVaultName'),'/add')]",
+      "type": "Microsoft.KeyVault/vaults/accessPolicies",
+      "apiVersion": "2018-02-14",
+      "dependsOn": [
+        "[variables('managedIdentityName')]"
+      ],
+      "properties": {
+        "accessPolicies": [{
+           "tenantId": "[subscription().tenantId]",
+           "objectId": "[reference(concat('Microsoft.ManagedIdentity/userAssignedIdentities/', variables('managedIdentityName'))).principalId]",
+           "permissions": {
+              "keys": [
+                "get",
+                "list"
+               ],
+               "secrets": [
+                 "get",
+                 "list"
+               ],
+               "certificates": [
+                 "get"
+               ]
+            }
+        }]
+      }
+    },
+    {
+      "type": "Microsoft.Network/applicationGateways",
+      "apiVersion": "2019-02-01",
+      "name": "[variables('applicationGatewayName')]",
+      "location": "[variables('location')]",
+      "dependsOn": [
+        "[concat('Microsoft.ManagedIdentity/userAssignedIdentities/', variables('managedIdentityName'))]",
+        "[concat('Microsoft.Network/publicIPAddresses/', variables('appGwPublicIpName'))]"
+      ],
+      "tags": {
+        "Application": "<#=application #>",
+        "Owner": "<#=owner #>",
+        "Environment": "[variables('tagEnvironment')]"
+      },
+      "identity": {
+        "type": "UserAssigned",
+        "userAssignedIdentities": {
+          "[resourceId(variables('teamRg'), 'Microsoft.ManagedIdentity/userAssignedIdentities/', variables('managedIdentityName'))]":{}
+        }
+      },
+      "properties": {
+        "sku": {
+          "name": "[variables('tier')]",
+          "tier": "[variables('tier')]"
+        },
+        "sslCertificates": [
+          {
+            "name": "appGatewaySslCert",
+            "properties": {
+              "keyVaultSecretId": "[reference(variables('keyVaultResourceId'), '2018-02-14').secretUriWithVersion]",
+              "publicCertData": "[variables('certSecretName')]"
+            }
+          }
+        ],
+        "gatewayIPConfigurations": [
+          {
+            "name": "appGatewayIpConfig",
+            "properties": {
+              "subnet": {
+                "id": "[variables('subnetRef')]"
+              }
+            }
+          }
+        ],
+        "frontendIPConfigurations": [
+          {
+            "name": "appGwPublicFrontendIp",
+            "properties": {
+              "PublicIPAddress": {
+                "id": "[variables('publicIPRef')]"
+              }
+            }
+          }
+        ],
+        "frontendPorts": [
+          {
+            "name": "httpPort",
+            "properties": {
+              "port": 80
+            }
+          },
+          {
+            "name": "httpsPort",
+            "properties": {
+              "Port": 443
+            }
+          }
+        ],
+        "backendAddressPools": [
+          <#
+            for (Int32 ips = 0; ips < stage.BackendAddressPools.Length; ++ips) {
+                var setting = stage.BackendAddressPools[ips];
+                var comma = (ips == stage.BackendAddressPools.Length - 1) ? "" : ",";
+                var azureWebUrl = setting.Value;
+                var backEndName = setting.Name;
+                #>
+                {
+                    "name": "default-<#=backEndName #>-pool",
+                    "properties": {
+                      "backendAddresses": [
+                        {
+                          "fqdn": "<#=azureWebUrl #>"
+                        }
+                      ]
+                    }
+                }<#=comma #>
+                <#
+            }
+          #>
+        ],
+        "backendHttpSettingsCollection": [
+          {
+            "name": "defaulthttpsetting",
+            "properties": {
+              "port": 80,
+              "protocol": "Http",
+              "cookieBasedAffinity": "Disabled",
+              "pickHostNameFromBackendAddress": false,
+              "affinityCookieName": "ApplicationGatewayAffinity",
+              "requestTimeout": 30
+            }
+          },
+          <#
+            for (Int32 ips = 0; ips < stage.WebAppHosts.Length; ++ips) {
+                var probeHost = stage.WebAppHosts[ips];
+                var comma = (ips == stage.WebAppHosts.Length - 1) ? "" : ",";
+                #>{
+                    "name": "bp-default-<#=probeHost #>-80-443",
+                    "properties": {
+                      "Port": "[variables('backendPort')]",
+                      "Protocol": "Https",
+                      "connectionDraining": {
+                        "enabled": <#=connectionDrainingEnabled #>,
+                        "drainTimeoutInSec": <#=connectionDrainingTimeout #>
+                      },
+                      "CookieBasedAffinity": "[variables('cookieBasedAffinity')]",
+                      "affinityCookieName": "<#=affinityCookieName #>",
+                      "requestTimeout": 30,
+                      "pickHostNameFromBackendAddress": true,
+                      "probe": {
+                        "id": "[concat(variables('applicationGatewayId'), '/probes/', 'pb-default-<#=probeHost #>-80')]"
+                      }
+                    }
+                  }
+                  <#=comma #>
+                <#
+            }
+          #>
+        ],
+        "httpListeners": [
+          <#
+            for (Int32 ips = 0; ips < stage.WebAppHosts.Length; ++ips) {
+                var webAppUrl = stage.WebAppHosts[ips];
+                var comma = (ips == stage.WebAppHosts.Length - 1) ? "" : ",";
+                #>{
+                    "name": "fl-<#=webAppUrl #>-80",
+                    "properties": {
+                      "frontendIPConfiguration": {
+                        "id": "[concat(resourceId('Microsoft.Network/applicationGateways', variables('applicationGatewayName')), '/frontendIPConfigurations/appGwPublicFrontendIp')]"
+                      },
+                      "frontendPort": {
+                        "id": "[concat(resourceId('Microsoft.Network/applicationGateways', variables('applicationGatewayName')), '/frontendPorts/httpPort')]"
+                      },
+                      "protocol": "Http",
+                      "requireServerNameIndication": false
+                    }
+                  },
+                  {
+                    "name": "fl-<#=webAppUrl #>-443",
+                    "properties": {
+                      "frontendIPConfiguration": {
+                        "id": "[concat(variables('applicationGatewayId'), '/frontendIPConfigurations/appGwPublicFrontendIp')]"
+                      },
+                      "frontendPort": {
+                        "id": "[concat(variables('applicationGatewayId'), '/frontendPorts/httpsPort')]"
+                      },
+                      "protocol": "Https",
+                      "SslCertificate": {
+                        "Id": "[concat(variables('applicationGatewayID'), '/sslCertificates/appGatewaySslCert')]"
+                      }
+                    }
+                  }<#=comma #>
+                <#
+            }
+          #>
+        ],
+        "requestRoutingRules": [ 
+            <#
+            for (Int32 ips = 0; ips < stage.WebAppHosts.Length; ++ips) {
+                var webAppUrl = stage.WebAppHosts[ips];
+                var comma = (ips == stage.WebAppHosts.Length - 1) ? "" : ",";
+                #>{
+                    "name": "rr-<#=webAppUrl #>-443",
+                    "properties": {
+                      "RuleType": "Basic",
+                      "httpListener": {
+                        "id": "[concat(variables('applicationGatewayId'), '/httpListeners/fl-<#=webAppUrl #>-443')]"
+                      },
+                      "backendAddressPool": {
+                        "id": "[concat(variables('applicationGatewayId'), '/backendAddressPools/', 'default-<#=webAppUrl #>-pool')]"
+                      },
+                      "backendHttpSettings": {
+                        "id": "[concat(variables('applicationGatewayId'), '/backendHttpSettingsCollection/httpsetting')]"
+                      }
+                    }
+                  },
+                  {
+                    "name": "rr-<#=webAppUrl #>-80",
+                    "properties": {
+                      "ruleType": "Basic",
+                      "httpListener": {
+                        "id": "[concat(resourceId('Microsoft.Network/applicationGateways', variables('applicationGatewayName')), '/httpListeners/fl-<#=webAppUrl #>-80')]"
+                      },
+                      "redirectConfiguration": {
+                        "id": "[concat(resourceId('Microsoft.Network/applicationGateways', variables('applicationGatewayName')), '/redirectConfigurations/fl-<#=webAppUrl #>-80-443')]"
+                      }
+                    }
+                  }<#=comma #>
+                <#
+            }
+          #>
+        ],
+        "enableHttp2": false,
+        "probes": [
+            <#
+            for (Int32 ips = 0; ips < stage.WebAppHosts.Length; ++ips) {
+                var probeHost = stage.WebAppHosts[ips];
+                var comma = (ips == stage.WebAppHosts.Length - 1) ? "" : ",";
+                #>{
+                    "name": "pb-default-<#=probeHost #>-80",
+                    "properties": {
+                      "backendHttpSettings": [
+                        {
+                          "id": "[concat(variables('applicationGatewayId'), '/backendHttpSettingsCollection/bp-default-<#=probeHost #>-80-443')]"
+                        }
+                      ],
+                      "interval": 30,
+                      "minServers": 0,
+                      "path": "/",
+                      "protocol": "Https",
+                      "timeout": 30,
+                      "unhealthyThreshold": 3,
+                      "pickHostNameFromBackendHttpSettings": true
+                    }
+                  }
+                  <#=comma #>
+                <#
+            }
+          #>
+        ],
+        "sslPolicy": {
+          "policyType": "Custom",
+          "minProtocolVersion": "TLSv1_2",
+          "cipherSuites": [
+            "TLS_RSA_WITH_AES_256_CBC_SHA256",
+            "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384",
+            "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+            "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256",
+            "TLS_DHE_RSA_WITH_AES_128_GCM_SHA256",
+            "TLS_RSA_WITH_AES_128_GCM_SHA256",
+            "TLS_RSA_WITH_AES_128_CBC_SHA256"
+          ]
+        },
+        "redirectConfigurations": [
+          <#
+            for (Int32 ips = 0; ips < stage.WebAppHosts.Length; ++ips) {
+                var webAppUrl = stage.WebAppHosts[ips];
+                var comma = (ips == stage.WebAppHosts.Length - 1) ? "" : ",";
+                #>{
+                    "name": "fl-<#=webAppUrl #>-80-443",
+                    "properties": {
+                      "redirectType": "Permanent",
+                      "targetListener": {
+                        "id": "[concat(resourceId('Microsoft.Network/applicationGateways', variables('applicationGatewayName')), '/httpListeners/fl-<#=webAppUrl #>-443')]"
+                      },
+                      "includePath": true,
+                      "includeQueryString": true,
+                      "requestRoutingRules": [
+                        {
+                          "id": "[concat(resourceId('Microsoft.Network/applicationGateways', variables('applicationGatewayName')), '/requestRoutingRules/rr-<#=webAppUrl #>-443')]"
+                        }
+                      ]
+                    }
+                  }<#=comma #>
+                <#
+            }
+          #>
+        ],
+        "webApplicationFirewallConfiguration": {
+          "enabled": true,
+          "firewallMode": "<#=firewallMode #>",
+          "ruleSetType": "OWASP",
+          "ruleSetVersion": "3.1",
+          "exclusions": [],
+          "requestBodyCheck": true,
+          "maxRequestBodySizeInKb": 128,
+          "fileUploadLimitInMb": 100
+        },
+        "autoscaleConfiguration": {
+          "minCapacity": "[variables('capacity')]",
+          "maxCapacity": "[variables('autoScaleMaxCapacity')]"
+        }
+      },
+      "resources": [
+        {
+          "type": "providers/diagnosticSettings",
+          "apiVersion": "2017-05-01-preview",
+          "name": "[concat('Microsoft.Insights/', variables('diagnosticSettingName'))]",
+          "dependsOn": [
+            "[resourceId('Microsoft.Network/applicationGateways', variables('applicationGatewayName'))]"
+          ],
+          "properties": {
+            "name": "[variables('diagnosticSettingName')]",
+            "storageAccountId": "[resourceId(variables('storageaccountrgname'), 'Microsoft.Storage/storageAccounts', variables('storageaccountname'))]",
+            "logs": [
+              {
+                "category": "ApplicationGatewayAccessLog",
+                "enabled": true,
+                "retentionPolicy": {
+                  "days": 90,
+                  "enabled": true
+                }
+              },
+              {
+                "category": "ApplicationGatewayPerformanceLog",
+                "enabled": true,
+                "retentionPolicy": {
+                  "days": 90,
+                  "enabled": true
+                }
+              },
+              {
+                "category": "ApplicationGatewayFirewallLog",
+                "enabled": true,
+                "retentionPolicy": {
+                  "days": 90,
+                  "enabled": true
+                }
+              }
+            ],
+            "metrics": [
+              {
+                "category": "AllMetrics",
+                "enabled": true,
+                "retentionPolicy": {
+                  "enabled": true,
+                  "days": 90
+                }
+              }
+            ]
+          },
+          "condition": "[equals(variables('enablediagnostics'),'Yes')]"
+        }
+      ]
+    },
+    {
+      "type": "Microsoft.Network/publicIPAddresses",
+      "apiVersion": "2019-02-01",
+      "name": "[variables('appGwPublicIpName')]",
+      "location": "[variables('location')]",
+      "tags": {
+        "Application": "<#=application #>",
+        "Owner": "<#=owner #>",
+        "Environment": "[variables('tagEnvironment')]"
+      },
+      "sku": {
+        "name": "[variables('sku')]"
+      },
+      "properties": {
+        "publicIPAllocationMethod": "[variables('allocationMethod')]",
+        "dnsSettings": {
+          "domainNameLabel": "[variables('dnsnamepip')]"
+        }
+      }
+    },
+    {
+      "apiVersion": "2017-05-10",
+      "name": "iprestrictions",
+      "condition": "[equals(variables('iprestrictions'),'Yes')]",
+      "type": "Microsoft.Resources/deployments",
+      "resourceGroup": "[variables('teamRg')]",
+      "dependsOn": [
+        "[variables('applicationGatewayName')]",
+        "[variables('appGwPublicIpName')]"
+      ],
+      "properties": {
+        "mode": "Incremental",
+        "template": {
+          "$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "parameters": {},
+          "variables": {},
+          "resources": [
+          <#
+            for (Int32 ips = 0; ips < stage.BackendAddressPools.Length; ++ips) {
+                var setting = stage.BackendAddressPools[ips];
+                var comma = (ips == stage.BackendAddressPools.Length - 1) ? "" : ",";
+                var backEndName = setting.Value.ToLower().Replace(".azurewebsites.net","");
+                #>{
+                    "type": "Microsoft.Web/sites/config",
+                    "apiVersion": "2019-08-01",
+                    "name": "[concat('<#= backEndName #>', '/web')]",
+                    "dependsOn": [],
+                    "properties": {
+                    "ipSecurityRestrictions": [
+                        {
+                        "ipAddress": "[concat(reference(variables('publicIPRef')).ipAddress, '/32')]",
+                        "action": "Allow",
+                        "tag": "Default",
+                        "priority": 100,
+                        "name": "Allow App Gateway Traffic",
+                        "description": "appgateway"
+                        },
+                        {
+                        "ipAddress": "<#=ipSecurityRestrictions #>",
+                        "action": "Allow",
+                        "tag": "Default",
+                        "priority": 101,
+                        "name": "Allow Internal Traffic Only",
+                        "description": "<#=internalNetworkName #>"
+                        }
+                    ],
+                    "scmIpSecurityRestrictions": [
+                        {
+                        "ipAddress": "<#=ipSecurityRestrictions #>",
+                        "action": "Allow",
+                        "tag": "Default",
+                        "priority": 100,
+                        "name": "Allow Internal Traffic Only",
+                        "description": "<#=internalNetworkName #>"
+                        }
+                    ],
+                    "scmIpSecurityRestrictionsUseMain": "false"
+                    }
+                }<#=comma #>
+            <#
+            }
+          #>
+          ]
+        },
+        "parameters": {}
+      }
+    }
+  ]
+}
+  
+
+<#
+SaveOutputToSubFolder(codeGenPath, $"{data.Id}\\{data.TeamName.ToLower()}-ingress-infra\\ArmTemplate", stageFileName);    
+}
+#>
+
+<#+
+private void SaveOutputToSubFolder(string rootTemplatePath, string folderName, string outputFileName) {
+  string templateDirectory = Path.GetDirectoryName(rootTemplatePath.Replace('\\', Path.DirectorySeparatorChar));
+  string newDirectoryName = Path.Combine(templateDirectory,folderName.Replace('\\', Path.DirectorySeparatorChar));
+  if(!Directory.Exists(newDirectoryName))
+  {  
+	Directory.CreateDirectory(newDirectoryName);
+  }
+  string outputFilePath = Path.Combine(newDirectoryName, outputFileName.Replace('\\', Path.DirectorySeparatorChar));
+  File.WriteAllText(outputFilePath, this.GenerationEnvironment.ToString()); 
+  this.GenerationEnvironment.Remove(0, this.GenerationEnvironment.Length);
+}
+
+private readonly string deployment;
+private readonly string rootTemplatePath;
+public AGWIngressDeployment(string deployment, string rootTemplatePath) {
+    this.deployment = deployment;
+    this.rootTemplatePath = rootTemplatePath;
+}
+#>

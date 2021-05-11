@@ -1,0 +1,91 @@
+{
+  "id": "efa022f4-2c02-46d8-b614-1b43989d652f",
+  "name": "test-admin",
+  "type": "webApp",
+  "tenantId": "efa022f4-2c02-46d8-b614-1b43989d652f",
+  "intAzureServiceConnectionName": "test-int-rg-connection",
+  "azureServiceConnectionName": "test-int-rg-connection",
+  "intResourceGroup": "sample-int-eastus-sso-rg",
+  "teamName": "sample",
+  "isMultiRegion": false,
+  "applicationName": "ssoadmin",
+  "teamDisplayName": "core services",
+  "applicationType": "webApp",
+  "owner": "coreservices@org.org",
+  "poolName": "orgonprem",
+  "internalNetworkName": "orgnetwork",
+  "ipSecurityRestrictions": "1.1.1.0/24",
+  "defaultLocation": "East US",
+  "resourceGroupConfigKVSuffix": "sso-kv",
+  "appServicePlanAutoScaleEmailNotificationContacts": [
+    "test@123.org"
+  ],
+  "relayConfiguration": [
+    "coresvc"
+  ],
+  "webDeploymentStages": [
+    {
+      "name": "int-eastus",
+      "environment": "int",
+      "subscriptionId": "efa022f4-2c02-46d8-b614-1b43989d652f",
+      "deploymentLocation": "eastus",
+      "deploymentLocationName": "East US",
+      "azureServiceConnectionName": "test-int-rg-connection",
+      "resourceGroup": "sample-int-eastus-sso-rg",
+      "storageAccountSku": "Standard_LRS",
+      "appServicePlanSku": "S1",
+      "appServicePlanTier": "Standard",
+      "appServicePlanFamily": "S",
+      "appServicePlanInstanceCount": 1,
+      "appServiceSslCertificateName": "int-ssl-cert",
+      "appServiceCustomHostname": "testadmin-eastus.int.org.org",
+      "appServiceBlueSlotCustomHostname": "testadmin-blue-eastus.int.org.org",
+      "certKeyVaultRG": "east-keyvault-rg",
+      "certKeyVaultName": "east-int-keyvault",
+      "loadBalancing": "LeastRequests",
+      "enableAppServiceAutoscaling": false,
+      "multiRegionSeparator": "",
+      "actionGroupShortName": "test",
+      "azureTeamServiceConnectionName": "",
+      "teamResourceGroup": "",
+      "productionSpecificSettings": [
+        {
+          "name": "ASPNETCORE_ENVIRONMENT",
+          "value": "Integration"
+        }
+      ],
+      "slotSpecificSettings": [
+        {
+          "name": "ASPNETCORE_ENVIRONMENT",
+          "value": "Integration"
+        }
+      ],
+      "appConnectionstrings": [
+        {
+          "name": "DefaultConnection",
+          "value": "@Microsoft.KeyVault(SecretUri=https://sample-int-eastus-csso-kv.vault.azure.net/secrets/DefaultConnection/)",
+          "type": "SQLAzure"
+        }
+      ],
+      "slotConnectionstringSettings": [
+        {
+          "name": "DefaultConnection",
+          "value": "@Microsoft.KeyVault(SecretUri=https://sample-int-eastus-csso-kv.vault.azure.net/secrets/DefaultConnection/)",
+          "type": "SQLAzure"
+        }
+      ],
+      "slotConfiguration": [
+        "ANCM_ADDITIONAL_ERROR_PAGE_LINK",
+        "ConfigurationUrls:IdentityUrls:IdentityServerBaseUrl",
+        "ConfigurationUrls:IdentityUrls:IdentityAdminRedirectUri",
+        "ConfigurationUrls:IdentityUrls:IdentityAdminBaseUrl"
+      ],
+      "serviceBusNamespace": "sample-int-relay",
+      "relayResourceGroupName": "integration-int-rg"
+    }
+  ],
+  "ingressDeploymentStages": [
+  ],
+  "tmDeploymentStages": [
+  ]
+}

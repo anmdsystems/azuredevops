@@ -1,0 +1,291 @@
+﻿<#@ template language="C#" #>
+<#@ assembly name="System.Core" #>
+<#@ import namespace="System.Linq" #>
+<#@ import namespace="System.Text" #>
+<#@ import namespace="System.Collections.Generic" #>
+<#@ import namespace="System" #>
+<#@ import namespace="System.IO" #>
+<#@ import namespace="System.Globalization" #>
+<#@ import namespace="Newtonsoft.Json" #>
+<#@ import namespace="Newtonsoft.Json.Converters" #>
+
+<#@ output extension=".txt" #>
+
+<#
+Deployment data = JsonConvert.DeserializeObject<Deployment>(this.deployment);
+
+var teamName = data.TeamName;
+var appName = data.Name;
+var application = data.ApplicationName;
+var appId = data.Id;
+var useVnetIntegration = data.UseVnetIntegration;
+var isLinux = data.IsLinux;
+var hasActionAlerts = data.HasActionAlerts;
+var applicationType = data.ApplicationType;
+var owner = data.Owner;
+var multiRegion = (data.IsMultiRegion) ? "[concat('-', parameters('DeploymentLocation'))]" : "";
+var ipSecurityRestrictions = data.IpSecurityRestrictions;
+var internalNetworkName = data.InternalNetworkName;
+var resourceGroupConfigKVSuffix = data.ResourceGroupConfigKVSuffix;
+var useDbaVault = data.UseDbaVault;
+var dotnetcore = data.IsDotNetCore;
+var customDns = data.IsCustomDns;
+var hasSlots = data.HasSlots;
+var useIndependentPlan = data.UseIndependentPlan;
+var kind = data.Kind ?? "app";
+var islinux = data.IsLinux;
+var isContainer = data.IsContainer;
+var dotnetstartupdll = data.StartupCommand ?? "";
+var dotnetversion = data.Dotnetversion ?? "";
+var appServicePlanAutoScaleEmailNotificationContacts = JsonConvert.SerializeObject(data.AppServicePlanAutoScaleEmailNotificationContacts);
+var hasCustomCertificate = data.IsCustomDns;
+
+// DO NOT WIPE THE SOURCE CODE...
+var codeGenPath = $"{this.rootTemplatePath}codegen\\";
+
+// TEMPLATE CODE HERE
+#>
+{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "Environment": {
+      "type": "string",
+      "metadata": {
+        "description": "The environment type to be deployed. This is used when naming resources."
+      }
+    },
+    "AppServicePlanSku": {
+      "type": "string",
+      "metadata": {
+        "description": "The SKU to be used for the app service plan."
+      }
+    },
+    "AppServicePlanTier": {
+      "type": "string",
+      "metadata": {
+        "description": "The tier to be used for the app service plan."
+      }
+    },
+    "AppServicePlanInstanceCount": {
+      "type": "int",
+      "metadata": {
+        "description": "The number of instances to run within the app service plan."
+      }
+    },
+    "EnableAppServiceAutoscaling": {
+      "type": "bool",
+      "defaultValue": false,
+      "metadata": {
+        "description": "Specifices if auto scaling should be applied to the app service plan."
+      }
+    },
+    "AppServiceSslCertificateName": {
+      "type": "string",
+      "metadata": {
+        "description": "The name of the SSL certificate bound to the app service to be used by custom hostnames."
+      }
+    },
+    "KeyVaultTenantId": {
+      "type": "string",
+      "metadata": {
+        "description": "The Azure AD Tenant Id associated with the Key Vault."
+      }
+    },
+    "KeyVaultAccessPolicies": {
+      "type": "object",
+      "defaultValue": { "list": [] },
+      "metadata": {
+        "description": "The access policies to be applied to the Key Vault. Defaults to no access policies."
+      }
+    },
+    "DeploymentLocation": {
+      "type": "string",
+      "defaultValue": "[resourceGroup().location]",
+      "metadata": {
+        "description": "The Azure Location (Region) that the resources should be deployed into."
+      }
+    },
+    "CertKeyVaultRG": {
+      "type": "string",
+      "metadata": {
+        "description": "Existing Key Vault resource Id with an access policy to allow Microsoft.Web RP to read Key Vault secrets (Checkout README.md for more information)"
+      }
+    },
+    "CertKeyVaultName": {
+      "type": "string"
+    }
+  },
+  "variables": {
+    "resourceTags": {
+      "Environment": "[toUpper(parameters('Environment'))]",
+      "Application": "<#= application #>",
+      "Owner": "<#=owner #>"
+    },
+    "teamName": "<#=teamName #>",
+    "appName": "<#=appName #>",
+    "deploymentLocation": "[resourceGroup().location]",
+    "multiRegion": "<#=multiRegion #>",
+    "environment": "[toLower(parameters('Environment'))]",
+    "azureKeyValueTenantId": "[parameters('KeyVaultTenantId')]",
+    "keyVaultAccessPolicies": "[parameters('KeyVaultAccessPolicies')]",
+    "appServicePlanName": "[concat(variables('teamName'), '-', variables('environment'), variables('multiRegion'), '-serviceplan')]",
+    "appServicePlanResourceId": "[resourceId('Microsoft.Web/serverFarms/', variables('appServicePlanName'))]",
+    "appServicePlanSku": "[parameters('AppServicePlanSku')]",
+    "appServicePlanTier": "[parameters('AppServicePlanTier')]",
+    "appServicePlanInstanceCount": "[parameters('AppServicePlanInstanceCount')]",
+    "appServicePlanAutoScaleSettingsName": "[concat(variables('appServicePlanName'), '-autoscalesettings')]",
+    "certKeyVaultId": "[resourceId(parameters('CertKeyVaultRG'), 'Microsoft.KeyVault/vaults', parameters('CertKeyVaultName'))]",
+    "appServicePlanAutoScaleEmailNotificationContacts": <#=appServicePlanAutoScaleEmailNotificationContacts #>,
+    "enableAppServiceAutoscaling": "[parameters('EnableAppServiceAutoscaling')]",
+    "appServiceSslCertificateName": "[parameters('AppServiceSslCertificateName')]"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Web/serverfarms",
+      "apiVersion": "2019-08-01",
+      "name": "[variables('appServicePlanName')]",
+      "location": "[resourceGroup().location]",
+      "tags": "[variables('resourceTags')]",
+      "kind": "<#=kind #>",
+      "properties": {
+        <# if (islinux) {#>
+            "reserved": true,
+        <#}#>
+        "name": "[variables('appServicePlanName')]"
+      },
+      "sku": {
+        "name": "[variables('appServicePlanSku')]",
+        "tier": "[variables('appServicePlanTier')]",
+        "capacity": "[variables('appServicePlanInstanceCount')]"
+      }
+    },
+    <# if (hasCustomCertificate) {#>
+    {
+      "type": "Microsoft.Web/certificates",
+      "apiVersion": "2016-03-01",
+      "name": "[variables('appServiceSslCertificateName')]",
+      "location": "[resourceGroup().location]",
+      "dependsOn": [
+        "[concat('Microsoft.Web/serverfarms/', variables('appServicePlanName'))]"
+      ],
+      "properties": {
+        "keyVaultId": "[variables('certKeyVaultId')]",
+        "keyVaultSecretName": "[variables('appServiceSslCertificateName')]",
+        "serverFarmId": "[resourceId('Microsoft.Web/serverFarms', variables('appServicePlanName'))]"
+      }
+    },
+    <#}#>
+    {
+      "name": "[variables('appServicePlanAutoScaleSettingsName')]",
+      "type": "microsoft.insights/autoscalesettings",
+      "dependsOn": [
+        "[concat('Microsoft.Web/serverfarms/', variables('appServicePlanName'))]"
+      ],
+      "apiVersion": "2015-04-01",
+      "location": "[resourceGroup().location]",
+      "tags": "[variables('resourceTags')]",
+      "properties": {
+        "enabled": "[variables('enableAppServiceAutoscaling')]",
+        "targetResourceUri": "[variables('appServicePlanResourceId')]",
+        "profiles": [
+          {
+            "name": "DefaultAutoscaleProfile",
+            "capacity": {
+              "minimum": "1",
+              "maximum": "10",
+              "default": "1"
+            },
+            "rules": [
+              {
+                "metricTrigger": {
+                  "metricName": "CpuPercentage",
+                  "metricNamespace": "",
+                  "metricResourceUri": "[variables('appServicePlanResourceId')]",
+                  "operator": "GreaterThan",
+                  "statistic": "Average",
+                  "threshold": 65,
+                  "timeAggregation": "Average",
+                  "timeGrain": "PT1M",
+                  "timeWindow": "PT5M"
+                },
+                "scaleAction": {
+                  "direction": "Increase",
+                  "type": "ChangeCount",
+                  "value": "1",
+                  "cooldown": "PT5M"
+                }
+              },
+              {
+                "metricTrigger": {
+                  "metricName": "CpuPercentage",
+                  "metricNamespace": "",
+                  "metricResourceUri": "[variables('appServicePlanResourceId')]",
+                  "operator": "LessThan",
+                  "statistic": "Average",
+                  "threshold": 45,
+                  "timeAggregation": "Average",
+                  "timeGrain": "PT1M",
+                  "timeWindow": "PT5M"
+                },
+                "scaleAction": {
+                  "direction": "Decrease",
+                  "type": "ChangeCount",
+                  "value": "1",
+                  "cooldown": "PT5M"
+                }
+              }
+            ]
+          }
+        ],
+        "notifications": [
+          {
+            "operation": "Scale",
+            "email": {
+              "sendToSubscriptionAdministrator": true,
+              "sendToSubscriptionCoAdministrators": false,
+              "customEmails": "[variables('appServicePlanAutoScaleEmailNotificationContacts')]"
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "outputs": {
+    "appserviceplans": {
+      "type": "string",
+      "value": "[variables('appServicePlanName')]"
+    },
+    "appserviceplansid": {
+      "type": "string",
+      "value": "[resourceId('Microsoft.Web/serverfarms', variables('appServicePlanName'))]"
+    }
+  }
+}
+<#
+// END TEMPLATE CODE
+
+SaveOutputToSubFolder(codeGenPath, $"{data.Id}\\{data.TeamName.ToLower()}-{data.Name.ToLower()}-infra\\ArmTemplate", "azuredeploy.servicePlan.json");    
+#>
+
+
+<#+
+private void SaveOutputToSubFolder(string rootTemplatePath, string folderName, string outputFileName) {
+  string templateDirectory = Path.GetDirectoryName(rootTemplatePath.Replace('\\', Path.DirectorySeparatorChar));
+  string newDirectoryName = Path.Combine(templateDirectory,folderName.Replace('\\', Path.DirectorySeparatorChar));
+  if(!Directory.Exists(newDirectoryName))
+  {  
+	Directory.CreateDirectory(newDirectoryName);
+  }
+  string outputFilePath = Path.Combine(newDirectoryName, outputFileName.Replace('\\', Path.DirectorySeparatorChar));
+  File.WriteAllText(outputFilePath, this.GenerationEnvironment.ToString()); 
+  this.GenerationEnvironment.Remove(0, this.GenerationEnvironment.Length);
+}
+
+private readonly string deployment;
+private readonly string rootTemplatePath;
+public ServicePlan(string deployment, string rootTemplatePath) {
+    this.deployment = deployment;
+    this.rootTemplatePath = rootTemplatePath;
+}
+#>

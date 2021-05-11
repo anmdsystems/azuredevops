@@ -1,0 +1,187 @@
+﻿<#@ template language="C#" #>
+<#@ assembly name="System.Core" #>
+<#@ import namespace="System.Linq" #>
+<#@ import namespace="System.Text" #>
+<#@ import namespace="System.Collections.Generic" #>
+<#@ import namespace="System" #>
+<#@ import namespace="System.IO" #>
+<#@ import namespace="System.Globalization" #>
+<#@ import namespace="Newtonsoft.Json" #>
+<#@ import namespace="Newtonsoft.Json.Converters" #>
+
+<#@ output extension=".txt" #>
+
+<#
+Deployment data = JsonConvert.DeserializeObject<Deployment>(this.deployment);
+
+var ipSecurityRestrictions = data.IpSecurityRestrictions;
+var internalNetworkName = data.InternalNetworkName;
+var appName = data.ApplicationName;
+var teamName = data.TeamName;
+var applicationType = data.ApplicationType;
+var owner = data.Owner;
+var resourceGroupConfigKVSuffix = data.ResourceGroupConfigKVSuffix;
+var stages = data.TmDeploymentStages;
+
+// DO NOT WIPE THE SOURCE CODE...
+var codeGenPath = $"{this.rootTemplatePath}codegen\\";
+
+// provision deployment stages   
+for (Int32 i = 0; i < stages.Length; ++i) {
+	var stage = stages[i];
+    var stageFileName = $"azuredeploy.trafficmanager.{stage.Name}.json";
+    var subscriptionId = stage.SubscriptionId;
+    var outagewebappurl = stage.Outagewebappurl;
+    var environment = stage.Environment;
+    var trafficManagerName = stage.TrafficManagerName;
+    var trafficRoutingMethod = stage.TrafficRoutingMethod;
+    var trafficViewEnrollment_Status = stage.TrafficViewEnrollmentStatus??"Enabled";
+#>
+{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {},
+  "variables": {
+    "trafficManager_name": "<#=trafficManagerName #>",
+    "location": "Global",
+    "trafficRoutingMethod": "<#=trafficRoutingMethod #>",
+    "outagewebappurl": "<#=outagewebappurl #>",
+    "TagEnvironment": "<#=environment #>",
+    "trafficViewEnrollment_Status": "<#=trafficViewEnrollment_Status #>"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Network/trafficManagerProfiles",
+      "apiVersion": "2018-04-01",
+      "name": "[variables('trafficManager_name')]",
+      "location": "global",
+      "tags": {
+        "Application": "<#=appName #>",
+        "Owner": "<#=owner #>",
+        "Environment": "[variables('TagEnvironment')]"
+      },
+      "properties": {
+        "profileStatus": "Enabled",
+        "trafficRoutingMethod": "[variables('trafficRoutingMethod')]",
+        "dnsConfig": {
+          "relativeName": "[variables('trafficManager_name')]",
+          "ttl": 5
+        },
+        "monitorConfig": {
+          "profileMonitorStatus": "Online",
+          "protocol": "HTTPS",
+          "port": 443,
+          "path": "/",
+          "intervalInSeconds": 30,
+          "toleratedNumberOfFailures": 3,
+          "timeoutInSeconds": 10
+          ],
+          "expectedStatusCodeRanges": [
+            {
+              "min": 200,
+              "max": 399
+            }
+          ]
+        },
+        "endpoints": [
+         {
+            "id": "[concat(resourceId('Microsoft.Network/trafficManagerProfiles', variables('trafficManager_name')), '/externalEndpoints/outage-endpoint')]",
+            "name": "outage-endpoint",
+            "type": "Microsoft.Network/trafficManagerProfiles/externalEndpoints",
+            "properties": {
+                "endpointStatus": "Enabled",
+                "endpointMonitorStatus": "Online",
+                "target": "[variables('outagewebappurl')]",
+                "weight": 1,
+                "priority": 20,
+                "customHeaders": [
+                {
+                    "name": "host",
+                    "value": "[variables('outagewebappurl')]"
+                }
+                ],
+                "subnets": []
+            }
+          },
+          <# 
+            int ipsProbe = 0;
+            foreach (var step in stage.TmPools)
+            {
+                var grComma = (stage.TmPools.Length == ipsProbe) ? "" : ",";
+                ipsProbe++;          
+                var isAgw = true;
+                var appgateway_url = step.AppgatewayUrl;
+                var webAppName = step.WebAppName;
+                var rgName = step.WebAppRgName;
+                var location = step.EndpointLocation;
+                var tmName = (string.IsNullOrEmpty(webAppName)) ? $"agw-{ipsProbe}" : webAppName;
+          #>{
+            <# if (isAgw) {#>
+            "id": "[concat(resourceId('Microsoft.Network/trafficManagerProfiles', variables('trafficManager_name')), '/externalEndpoints/<#=teamName #>-agw-backend<#=ipsProbe #>')]",
+            "type": "Microsoft.Network/trafficManagerProfiles/externalEndpoints",
+            <#} else {#>
+            "id": "[concat(resourceId('Microsoft.Network/trafficManagerProfiles', variables('trafficManager_name')), '/azureEndpoints/<#=tmName #>')]",
+            "type": "Microsoft.Network/trafficManagerProfiles/azureEndpoints",
+            <#}#>
+            "name": "<#=tmName #>",
+            "properties": {
+              "endpointStatus": "Enabled",
+              "endpointMonitorStatus": "Online",
+               <# if (isAgw) {#>
+              "target": "<#=appgateway_url #>",
+               <#} else {#>
+               "target": "<#=webAppName #>.azurewebsites.net",
+               "targetResourceId": "/subscriptions/<#=subscriptionId #>/resourceGroups/<#=rgName #>/providers/Microsoft.Web/sites/<#=webAppName #>",
+               <#}#>
+              "weight": 1,
+              "priority": 10,
+              "endpointLocation": "<#=location #>",
+              "customHeaders": [
+                <#
+                for (Int32 ips = 0; ips < step.WebAppHosts.Length; ++ips) {
+                    var webHost = step.WebAppHosts[ips];
+                    var comma = (ips == step.WebAppHosts.Length - 1) ? "" : ",";
+                    #>{
+                         "name": "host",
+                         "value": "<#=webHost #>"
+                      }<#=comma #>
+                    <#
+                }
+              #>
+              ],
+              "subnets": []
+            }
+          }<#=grComma #>      
+        <#}#>
+        ],
+        "trafficViewEnrollmentStatus": "Enabled"
+      }
+    }
+  ]
+}
+
+<#
+SaveOutputToSubFolder(codeGenPath, $"{data.Id}\\{data.TeamName.ToLower()}-ingress-infra\\ArmTemplate", stageFileName);    
+}
+#>
+
+<#+
+private void SaveOutputToSubFolder(string rootTemplatePath, string folderName, string outputFileName) {
+  string templateDirectory = Path.GetDirectoryName(rootTemplatePath.Replace('\\', Path.DirectorySeparatorChar));
+  string newDirectoryName = Path.Combine(templateDirectory,folderName.Replace('\\', Path.DirectorySeparatorChar));
+  if(!Directory.Exists(newDirectoryName))
+  {  
+	Directory.CreateDirectory(newDirectoryName);
+  }
+  string outputFilePath = Path.Combine(newDirectoryName, outputFileName.Replace('\\', Path.DirectorySeparatorChar));
+  File.WriteAllText(outputFilePath, this.GenerationEnvironment.ToString()); 
+  this.GenerationEnvironment.Remove(0, this.GenerationEnvironment.Length);
+}
+
+private readonly string deployment;
+private readonly string rootTemplatePath;
+public TrafficManagerDeployment(string deployment, string rootTemplatePath) {
+    this.deployment = deployment;
+    this.rootTemplatePath = rootTemplatePath;
+}
+#>

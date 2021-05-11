@@ -37,3 +37,22 @@ https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.github
 
   # Use Existing or Create a New Linux App Service Plan - B1 or above
       Note the App Service Plan and Resource Group.
+
+# Using Console App to Generate CI/CD Templates instead?
+  # On Windows
+    <ul>
+      <li>
+          Change rootTemplatePath int the Main to desired location.   
+          var rootTemplatePath = @$"C:\research\azuredevops\azure-deploy\BaseTemplate\";
+      </li>
+      <li>
+          Edit BaseTemplate\webDeployment.json to desired configurations
+      </li>
+      <li>
+          Run the Console App to Generate the CI/CD Pipelines.
+      </li>
+      <li>
+          LICENSE TERMS - MIT
+      </li>
+    </ul>
+

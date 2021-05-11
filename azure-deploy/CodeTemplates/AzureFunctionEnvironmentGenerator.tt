@@ -1,0 +1,257 @@
+﻿<#@ template language="C#" #>
+<#@ assembly name="System.Core" #>
+<#@ import namespace="System.Linq" #>
+<#@ import namespace="System.Text" #>
+<#@ import namespace="System.Collections.Generic" #>
+<#@ import namespace="System" #>
+<#@ import namespace="System.IO" #>
+<#@ import namespace="System.Globalization" #>
+<#@ import namespace="Newtonsoft.Json" #>
+<#@ import namespace="Newtonsoft.Json.Converters" #>
+
+<#@ output extension=".txt" #>
+
+<#
+Deployment data = JsonConvert.DeserializeObject<Deployment>(this.deployment);
+
+var tenantId = data.TenantId.ToString();
+var stages = data.WebDeploymentStages;
+
+// DO NOT WIPE THE SOURCE CODE...
+var codeGenPath = $"{this.rootTemplatePath}codegen\\";
+
+// provision deployment stages   
+for (Int32 i = 0; i < stages.Length; ++i) {
+	var stage = stages[i];
+    var subscriptionId = stage.SubscriptionId;
+    var deploymentLocation = stage.MultiRegionSeparator;
+    var stageFileName = $"azuredeploy.parameters.{stage.Name}.json";
+    var serviceBusNamespace = stage.ServiceBusNamespace ?? "";
+    var relayResourceGroupName = stage.RelayResourceGroupName ?? "";
+    var vNetName = stage.VNetName ?? "";
+    var subNetName = stage.SubNetName ?? "";
+    var actionGroupShortName = stage.ActionGroupShortName;
+    var alerts = (data.HasActionAlerts) ? "Yes" : "No";
+    #>
+{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "Environment": {
+      "value": "<#=stage.Environment #>"
+    },
+    "AppServicePlanSku": {
+      "value": "<#=stage.AppServicePlanSku #>"
+    },
+    "AppServicePlanTier": {
+      "value": "<#=stage.AppServicePlanTier #>"
+    },
+    "AppServicePlanInstanceCount": {
+      "value": <#=stage.AppServicePlanInstanceCount #>
+    },
+    "EnableAppServiceAutoscaling": {
+      "value": <#=stage.EnableAppServiceAutoscaling #>
+    },
+    "KeyVaultTenantId": {
+      "value": "<#=tenantId #>"
+    },
+    "DeploymentLocation": {
+      "value": "<#=deploymentLocation #>"
+    },
+    "AppServiceSslCertificateName": {
+      "value": "<#=stage.AppServiceSslCertificateName #>"
+    },
+    "AppServiceCustomHostname": {
+      "value": "<#=stage.AppServiceCustomHostname #>"
+    },
+    "AppServiceBlueSlotCustomHostname": {
+      "value": "<#=stage.AppServiceBlueSlotCustomHostname #>"
+    },
+    "CertKeyVaultRG": {
+      "value": "<#=stage.CertKeyVaultRG #>"
+    },
+    "CertKeyVaultName": {
+      "value": "<#=stage.CertKeyVaultName #>"
+    },
+    "ProductionSpecificSettings" : {
+      "value": {       
+        <#
+        for (Int32 ips = 0; ips < stage.ProductionSpecificSettings.Length; ++ips) {
+            var setting = stage.ProductionSpecificSettings[ips];
+            var comma = (ips == stage.ProductionSpecificSettings.Length - 1) ? "" : ",";
+            #>"<#=setting.Name #>" : "<#=setting.Value #>"<#=comma #>
+            <#
+        }
+        #>}
+    },
+    "SlotSpecificSettings" : {
+      "value": {        
+        <#
+          for (Int32 ips = 0; ips < stage.SlotSpecificSettings.Length; ++ips) {
+            var setting = stage.SlotSpecificSettings[ips];
+            var comma = (ips == stage.SlotSpecificSettings.Length - 1) ? "" : ",";
+            #>"<#=setting.Name #>" : "<#=setting.Value #>"<#=comma #>
+            <#
+          }
+        #>}
+    },
+    "AppConnectionstrings" : {
+      "value": {
+        <#
+          for (Int32 ips = 0; ips < stage.AppConnectionstrings.Length; ++ips) {
+            var setting = stage.AppConnectionstrings[ips];
+            var dbName = setting.Name; 
+            var appElement = setting.Value;
+            var appElementType = setting.Type;
+            var comma = (ips == stage.AppConnectionstrings.Length - 1) ? "" : ",";
+            #>  "<#=dbName #>": {
+                "value": "<#=appElement #>",
+                "type": "<#=appElementType #>"
+            }<#=comma #>
+            <#
+          }
+        #>}
+    },
+    "SlotConnectionstringSettings" : {
+      "value": {
+        <#
+          for (Int32 ips = 0; ips < stage.SlotConnectionstringSettings.Length; ++ips) {
+            var setting = stage.SlotConnectionstringSettings[ips];
+            var dbName = setting.Name; 
+            var appElement = setting.Value;
+            var appElementType = setting.Type;
+            var comma = (ips == stage.SlotConnectionstringSettings.Length - 1) ? "" : ",";
+            #>"<#=dbName #>": {
+                "value": "<#=appElement #>",
+                "type": "<#=appElementType #>"
+            }<#=comma #>
+            <#
+          }
+        #>}
+    },
+    "ServiceBusNamespace": {
+      "value": "<#=serviceBusNamespace #>"
+    },
+    "RelayResourceGroupName": {
+      "value": "<#=relayResourceGroupName #>"
+    },
+    "VNetName": {
+      "value": "<#=vNetName #>"
+    },
+    "SubNetName": {
+      "value": "<#=subNetName #>"
+    },
+    "AlertObject": {
+      "value": {
+        "alerts": [
+          {
+            "alertName": "<#=stage.AppServiceCustomHostname #> Http Server Error Dynamic Threshold",
+            "alertDescription": "",
+            "metricName": "Http5xx",
+            "alertSeverity": 3,
+            "dimensionName": "Instance",
+            "operator": "GreaterOrLessThan",
+            "alertSensitivity": "Medium",
+            "numberOfEvaluationPeriods": 4,
+            "minFailingPeriodsToAlert": 4,
+            "timeAggregation": "Total",
+            "windowSize": "PT5M",
+            "evaluationFrequency": "PT5M",
+            "actionGroupName": "<#=stage.ActionGroupShortName #>"
+          },
+          {
+            "alertName": "<#=stage.AppServiceCustomHostname #> Request Dynamic Threshold",
+            "alertDescription": "",
+            "metricName": "Requests",
+            "alertSeverity": 3,
+            "dimensionName": "Instance",
+            "operator": "GreaterOrLessThan",
+            "alertSensitivity": "Medium",
+            "numberOfEvaluationPeriods": 4,
+            "minFailingPeriodsToAlert": 4,
+            "timeAggregation": "Total",
+            "windowSize": "PT5M",
+            "evaluationFrequency": "PT5M",
+            "actionGroupName": "<#=stage.ActionGroupShortName #>"
+          },
+          {
+            "alertName": "<#=stage.AppServiceCustomHostname #> 4XX Error Dynamic Threshold",
+            "alertDescription": "",
+            "metricName": "Http4xx",
+            "alertSeverity": 3,
+            "dimensionName": "Instance",
+            "operator": "GreaterOrLessThan",
+            "alertSensitivity": "Medium",
+            "numberOfEvaluationPeriods": 4,
+            "minFailingPeriodsToAlert": 4,
+            "timeAggregation": "Total",
+            "windowSize": "PT5M",
+            "evaluationFrequency": "PT5M",
+            "actionGroupName": "<#=stage.ActionGroupShortName #>"
+          },          
+          {
+            "alertName": "<#=stage.AppServiceCustomHostname #> High Average Response Time",
+            "alertDescription": "",
+            "metricName": "AverageResponseTime",
+            "alertSeverity": 3,
+            "dimensionName": "Instance",
+            "operator": "GreaterThan",
+            "alertSensitivity": "Medium",
+            "numberOfEvaluationPeriods": 4,
+            "minFailingPeriodsToAlert": 4,
+            "timeAggregation": "Average",
+            "windowSize": "PT5M",
+            "evaluationFrequency": "PT5M",
+            "actionGroupName": "<#=stage.ActionGroupShortName #>"
+          },
+          {
+            "alertName": "<#=stage.AppServiceCustomHostname #> High Http Server Error",
+            "alertDescription": "",
+            "metricName": "Http5xx",
+            "alertSeverity": 3,
+            "dimensionName": "Instance",
+            "operator": "GreaterThan",
+            "alertSensitivity": "Medium",
+            "numberOfEvaluationPeriods": 4,
+            "minFailingPeriodsToAlert": 4,
+            "timeAggregation": "Total",
+            "threshold": 10.0,
+            "windowSize": "PT5M",
+            "evaluationFrequency": "PT5M",
+            "actionGroupName": "<#=stage.ActionGroupShortName #>"
+          }
+        ]
+      }
+    },
+    "Alerts":{
+      "value":"<#=alerts #>"
+    }
+  }
+}
+
+<#
+SaveOutputToSubFolder(codeGenPath, $"{data.Id}\\{data.TeamName.ToLower()}-{data.Name.ToLower()}-infra\\ArmTemplate", stageFileName);    
+}
+#>
+
+
+<#+
+private void SaveOutputToSubFolder(string rootTemplatePath, string folderName, string outputFileName) {
+  string templateDirectory = Path.GetDirectoryName(rootTemplatePath.Replace('\\', Path.DirectorySeparatorChar));
+  string newDirectoryName = Path.Combine(templateDirectory,folderName.Replace('\\', Path.DirectorySeparatorChar));
+  if(!Directory.Exists(newDirectoryName))
+  {  
+	Directory.CreateDirectory(newDirectoryName);
+  }
+  string outputFilePath = Path.Combine(newDirectoryName, outputFileName.Replace('\\', Path.DirectorySeparatorChar));
+  File.WriteAllText(outputFilePath, this.GenerationEnvironment.ToString()); 
+  this.GenerationEnvironment.Remove(0, this.GenerationEnvironment.Length);
+}
+
+private readonly string deployment;
+private readonly string rootTemplatePath;
+public AzureFunctionEnvironmentGenerator(string deployment, string rootTemplatePath) {
+    this.deployment = deployment;
+    this.rootTemplatePath = rootTemplatePath;
+}
+#>

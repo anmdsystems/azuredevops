@@ -1,0 +1,170 @@
+﻿<#@ template language="C#" #>
+<#@ assembly name="System.Core" #>
+<#@ import namespace="System.Linq" #>
+<#@ import namespace="System.Text" #>
+<#@ import namespace="System.Collections.Generic" #>
+<#@ import namespace="System" #>
+<#@ import namespace="System.IO" #>
+<#@ import namespace="System.Globalization" #>
+<#@ import namespace="Newtonsoft.Json" #>
+<#@ import namespace="Newtonsoft.Json.Converters" #>
+
+
+<#@ output extension=".txt" #>
+
+<#
+Deployment data = JsonConvert.DeserializeObject<Deployment>(this.deployment);
+
+var ipSecurityRestrictions = data.IpSecurityRestrictions;
+var internalNetworkName = data.InternalNetworkName;
+var application = data.TeamDisplayName;
+var applicationType = data.ApplicationType;
+var owner = data.Owner;
+var teamName = data.TeamName;
+var appName = data.Name;
+
+var stages = data.WebDeploymentStages;
+
+// DO NOT WIPE THE SOURCE CODE...
+var codeGenPath = $"{this.rootTemplatePath}codegen\\";
+var blue = (isBlue) ? "blue" : "";
+var stageFileName = $"azuredeploy.storageaccount{blue}.json";
+#>{
+  "$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "Environment": {
+        "defaultValue": "",
+        "type": "String"
+    },
+    "DeploymentLocation": {
+        "defaultValue": "",
+        "type": "String"
+    }
+  },
+  "variables": {
+    "teamName": "<#=teamName #>",
+    "appName": "<#=appName #>",
+    "blue": "<#=blue #>",
+    "storageAccountName": "[concat(variables('teamName'), parameters('Environment'), parameters('DeploymentLocation'), variables('appName'), variables('blue'), 'sa')]"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Storage/storageAccounts",
+      "apiVersion": "2018-07-01",
+      "name": "[variables('storageAccountName')]",
+      "location": "[resourceGroup().location]",
+      "dependsOn": [],
+      "tags": {
+        "Environment": "[parameters('Environment')]",
+        "Application": "<#= application #>",
+        "Owner": "<#=owner #>"
+      },
+      "sku": {
+        "name": "Standard_RAGRS",
+        "tier": "Standard"
+      },
+      "kind": "StorageV2",
+      "properties": {
+        "networkAcls": {
+            "bypass": "AzureServices",
+            "virtualNetworkRules": [],
+            "ipRules": [],
+            "defaultAction": "Allow"
+        },
+        "supportsHttpsTrafficOnly": true,
+        "encryption": {
+            "services": {
+                "file": {
+                    "keyType": "Account",
+                    "enabled": true
+                },
+                "blob": {
+                    "keyType": "Account",
+                    "enabled": true
+                }
+            },
+            "keySource": "Microsoft.Storage"
+        },
+        "accessTier": "Hot"
+      }
+    },
+    {
+        "type": "Microsoft.Storage/storageAccounts/blobServices",
+        "apiVersion": "2019-06-01",
+        "name": "[concat(variables('storageAccountName'), '/default')]",
+        "dependsOn": [
+            "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]"
+        ],
+        "sku": {
+            "name": "Standard_RAGRS",
+            "tier": "Standard"
+        },
+        "properties": {
+            "cors": {
+                "corsRules": []
+            },
+            "deleteRetentionPolicy": {
+                "enabled": false
+            }
+        }
+    },
+    {
+        "type": "Microsoft.Storage/storageAccounts/fileServices",
+        "apiVersion": "2019-06-01",
+        "name": "[concat(variables('storageAccountName'), '/default')]",
+        "dependsOn": [
+            "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]"
+        ],
+        "sku": {
+            "name": "Standard_RAGRS",
+            "tier": "Standard"
+        },
+        "properties": {
+            "cors": {
+                "corsRules": []
+            }
+        }
+    },
+    {
+        "type": "Microsoft.Storage/storageAccounts/blobServices/containers",
+        "apiVersion": "2019-06-01",
+        "name": "[concat(variables('storageAccountName'), '/default/$web')]",
+        "dependsOn": [
+            "[resourceId('Microsoft.Storage/storageAccounts/blobServices', variables('storageAccountName'), 'default')]",
+            "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]"
+        ],
+        "properties": {
+            "publicAccess": "Container"
+        }
+    }
+  ],
+  "outputs": {
+  }
+}
+<#
+SaveOutputToSubFolder(codeGenPath, $"{data.Id}\\{data.TeamName.ToLower()}-{data.Name.ToLower()}-infra\\ArmTemplate", stageFileName);    
+#>
+
+<#+
+private void SaveOutputToSubFolder(string rootTemplatePath, string folderName, string outputFileName) {
+  string templateDirectory = Path.GetDirectoryName(rootTemplatePath.Replace('\\', Path.DirectorySeparatorChar));
+  string newDirectoryName = Path.Combine(templateDirectory,folderName.Replace('\\', Path.DirectorySeparatorChar));
+  if(!Directory.Exists(newDirectoryName))
+  {  
+	Directory.CreateDirectory(newDirectoryName);
+  }
+  string outputFilePath = Path.Combine(newDirectoryName, outputFileName.Replace('\\', Path.DirectorySeparatorChar));
+  File.WriteAllText(outputFilePath, this.GenerationEnvironment.ToString()); 
+  this.GenerationEnvironment.Remove(0, this.GenerationEnvironment.Length);
+}
+
+private readonly string deployment;
+private readonly string rootTemplatePath;
+private readonly bool isBlue;
+public WebSiteStorageAccount(string deployment, string rootTemplatePath, bool isBlue) {
+    this.deployment = deployment;
+    this.rootTemplatePath = rootTemplatePath;
+    this.isBlue = isBlue;
+}
+#>

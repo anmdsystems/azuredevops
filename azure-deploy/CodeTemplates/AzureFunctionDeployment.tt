@@ -1,0 +1,948 @@
+﻿<#@ template language="C#" #>
+<#@ assembly name="System.Core" #>
+<#@ import namespace="System.Linq" #>
+<#@ import namespace="System.Text" #>
+<#@ import namespace="System.Collections.Generic" #>
+<#@ import namespace="System" #>
+<#@ import namespace="System.IO" #>
+<#@ import namespace="System.Globalization" #>
+<#@ import namespace="Newtonsoft.Json" #>
+<#@ import namespace="Newtonsoft.Json.Converters" #>
+
+<#@ output extension=".txt" #>
+
+<#
+Deployment data = JsonConvert.DeserializeObject<Deployment>(this.deployment);
+
+var teamName = data.TeamName;
+var appName = data.Name;
+var application = data.ApplicationName;
+var appId = data.Id;
+var useVnetIntegration = data.UseVnetIntegration;
+var isLinux = data.IsLinux;
+var hasActionAlerts = data.HasActionAlerts;
+var applicationType = data.ApplicationType;
+var owner = data.Owner;
+var multiRegion = (data.IsMultiRegion) ? "[concat('-', parameters('DeploymentLocation'))]" : "";
+var ipSecurityRestrictions = data.IpSecurityRestrictions;
+var internalNetworkName = data.InternalNetworkName;
+var resourceGroupConfigKVSuffix = data.ResourceGroupConfigKVSuffix;
+var useDbaVault = data.UseDbaVault;
+var dotnetcore = data.IsDotNetCore;
+var customDns = data.IsCustomDns;
+var hasSlots = data.HasSlots;
+var useIndependentPlan = data.UseIndependentPlan;
+var kind = data.Kind ?? "app";
+var islinux = data.IsLinux;
+var isContainer = data.IsContainer;
+var dotnetstartupdll = data.StartupCommand ?? "";
+var dotnetversion = data.Dotnetversion ?? "";
+var hasCustomCertificate = data.IsCustomDns;
+
+var appServicePlanAutoScaleEmailNotificationContacts = JsonConvert.SerializeObject(data.AppServicePlanAutoScaleEmailNotificationContacts);
+
+// DO NOT WIPE THE SOURCE CODE...
+var codeGenPath = $"{this.rootTemplatePath}codegen\\";
+
+// TEMPLATE CODE HERE
+#>
+
+{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "Environment": {
+      "type": "string",
+      "metadata": {
+        "description": "The environment type to be deployed. This is used when naming resources."
+      }
+    },
+    "AppServicePlanSku": {
+      "type": "string",
+      "metadata": {
+        "description": "The SKU to be used for the app service plan."
+      }
+    },
+    "AppServicePlanTier": {
+      "type": "string",
+      "metadata": {
+        "description": "The tier to be used for the app service plan."
+      }
+    },
+    "AppServicePlanInstanceCount": {
+      "type": "int",
+      "metadata": {
+        "description": "The number of instances to run within the app service plan."
+      }
+    },
+    "EnableAppServiceAutoscaling": {
+      "type": "bool",
+      "defaultValue": false,
+      "metadata": {
+        "description": "Specifices if auto scaling should be applied to the app service plan."
+      }
+    },
+    "AppServiceSslCertificateName": {
+      "type": "string",
+      "metadata": {
+        "description": "The name of the SSL certificate bound to the app service to be used by custom hostnames."
+      }
+    },
+    "AppServiceCustomHostname": {
+      "type": "string",
+      "metadata": {
+        "description": "The custom hostname to associate with the app service."
+      }
+    },
+    "AppServiceBlueSlotCustomHostname": {
+      "type": "string",
+      "metadata": {
+        "description": "The custom hostname to associate with the blue slot for the app service."
+      }
+    },
+    "KeyVaultTenantId": {
+      "type": "string",
+      "metadata": {
+        "description": "The Azure AD Tenant Id associated with the Key Vault."
+      }
+    },
+    "KeyVaultAccessPolicies": {
+      "type": "object",
+      "defaultValue": { "list": [] },
+      "metadata": {
+        "description": "The access policies to be applied to the Key Vault. Defaults to no access policies."
+      }
+    },
+    "DeploymentLocation": {
+      "type": "string",
+      "defaultValue": "[resourceGroup().location]",
+      "metadata": {
+        "description": "The Azure Location (Region) that the resources should be deployed into."
+      }
+    },
+    "CertKeyVaultRG": {
+      "type": "string",
+      "metadata": {
+        "description": "Existing Key Vault resource Id with an access policy to allow Microsoft.Web RP to read Key Vault secrets (Checkout README.md for more information)"
+      }
+    },
+    "CertKeyVaultName": {
+      "type": "string"
+    },
+    "ProductionSpecificSettings": {
+      "type": "object",
+      "defaultValue": {},
+      "metadata": {
+        "description": "Production Specific AppSettings"
+      }
+    },
+    "SlotSpecificSettings": {
+      "type": "object",
+      "defaultValue": {},
+      "metadata": {
+        "description": "Slot Specific Specific AppSettings"
+      }
+    },
+    "AppConnectionstrings": {
+      "type": "object",
+      "defaultValue": {},
+      "metadata": {
+        "description": "App Specific Connection Settings"
+      }
+    },
+    "SlotConnectionstringSettings": {
+      "type": "object",
+      "defaultValue": {},
+      "metadata": {
+        "description": "Slot Specific Specific Connection Strings"
+      }
+    },
+    "ServiceBusNamespace": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "serviceBusNamespace Settings"
+      }
+    },
+    "RelayResourceGroupName": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "relayResourceGroupName Setting"
+      }
+    },
+    "VNetName": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "vNet Integration Setting"
+      }
+    },
+    "SubNetName": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "subNet Integration Setting"
+      }
+    },
+    "AlertObject": {
+      "type": "object",
+      "defaultValue": {
+        "alerts": [
+          {
+            "alertName": "fixed"
+          }
+        ]
+      },
+      "metadata": {
+        "description": "Specifies all secrets {\"secretName\":\"\",\"secretValue\":\"\"} wrapped in a secure object."
+      }
+    },
+    "Alerts": {
+      "type": "String",
+      "defaultValue": "Yes"
+    }
+  },
+  "variables": {
+    "resourceTags": {
+      "Environment": "[toUpper(parameters('Environment'))]",
+      "Application": "<#= application #>",
+      "Owner": "<#=owner #>"
+    },
+    "teamName": "<#=teamName #>",
+    "appName": "<#=appName #>",
+    "applicationType": "<#=applicationType #>",
+    "deploymentLocation": "[resourceGroup().location]",
+    "multiRegion": "<#=multiRegion #>",
+    "environment": "[toLower(parameters('Environment'))]",
+    "resourcePrefix": "[concat(variables('teamName'), '-', variables('environment'), variables('multiRegion'), '-', variables('appName'))]",
+    "azureKeyValueTenantId": "[parameters('KeyVaultTenantId')]",
+    "keyVaultAccessPolicies": "[parameters('KeyVaultAccessPolicies')]",
+    "apiAppInsightsName": "[concat(variables('resourcePrefix'), '-', variables('applicationType'), '-appinsights')]",
+     <# if (useIndependentPlan) {#>
+    "appServicePlanName": "[concat(variables('resourcePrefix'), '-', variables('applicationType'), '-serviceplan')]",  
+     <#} else {#>
+    "appServicePlanName": "[concat(variables('teamName'), '-', variables('environment'), variables('multiRegion'), '-serviceplan')]",
+     <#}#>
+    "appServicePlanResourceId": "[resourceId('Microsoft.Web/serverFarms/', variables('appServicePlanName'))]",
+    "appServicePlanSku": "[parameters('AppServicePlanSku')]",
+    "appServicePlanTier": "[parameters('AppServicePlanTier')]",
+    "appServicePlanInstanceCount": "[parameters('AppServicePlanInstanceCount')]",
+    "appServicePlanAutoScaleSettingsName": "[concat(variables('appServicePlanName'), '-autoscalesettings')]",
+    "certKeyVaultId": "[resourceId(parameters('CertKeyVaultRG'), 'Microsoft.KeyVault/vaults', parameters('CertKeyVaultName'))]",
+    "appServicePlanAutoScaleEmailNotificationContacts": <#=appServicePlanAutoScaleEmailNotificationContacts #>,
+    "enableAppServiceAutoscaling": "[parameters('EnableAppServiceAutoscaling')]",
+    "appServiceName": "[concat(variables('resourcePrefix'), '-', variables('applicationType'))]",
+    "vNetName": "[parameters('VNetName')]",
+    "subNetName": "[parameters('SubNetName')]",
+    "appServiceSslCertificateName": "[parameters('AppServiceSslCertificateName')]",
+    "appServiceCustomHostname": "[parameters('AppServiceCustomHostname')]",
+    "appServiceBlueSlotName": "blue",
+    "appServiceBlueSlotCustomHostname": "[parameters('AppServiceBlueSlotCustomHostname')]",
+    "scmDetectorPageLink": ".scm.azurewebsites.net/detectors",
+    "productionSpecificSettings": "[parameters('ProductionSpecificSettings')]",
+    "slotSpecificSettings": "[parameters('SlotSpecificSettings')]",
+    "appConnectionstrings": "[parameters('AppConnectionstrings')]",
+    "slotConnectionstringSettings": "[parameters('SlotConnectionstringSettings')]",
+    "serviceBusNamespace": "[parameters('ServiceBusNamespace')]",
+    "relayResourceGroupName": "[parameters('RelayResourceGroupName')]"
+  },
+  "resources": [
+    {
+      "apiVersion": "2015-05-01",
+      "name": "[variables('apiAppInsightsName')]",
+      "type": "Microsoft.Insights/components",
+      "location": "[resourceGroup().location]",
+      "tags": "[variables('resourceTags')]",
+      "kind": "web",
+      "properties": {
+        "applicationId": "[variables('apiAppInsightsName')]"
+      }
+    },
+    {
+      "type": "Microsoft.Web/serverfarms",
+      "apiVersion": "2019-08-01",
+      "name": "[variables('appServicePlanName')]",
+      "location": "[resourceGroup().location]",
+      "tags": "[variables('resourceTags')]",
+      "kind": "app",
+      "properties": {
+        <# if (islinux) {#>
+            "reserved": true,
+        <#}#>
+        "name": "[variables('appServicePlanName')]"
+      },
+      "sku": {
+        "name": "[variables('appServicePlanSku')]",
+        "tier": "[variables('appServicePlanTier')]",
+        "capacity": "[variables('appServicePlanInstanceCount')]"
+      }
+    },
+    <# if (hasCustomCertificate) {#>
+    {
+      "type": "Microsoft.Web/certificates",
+      "apiVersion": "2016-03-01",
+      "name": "[variables('appServiceSslCertificateName')]",
+      "location": "[resourceGroup().location]",
+      "dependsOn": [
+        "[concat('Microsoft.Web/serverfarms/', variables('appServicePlanName'))]"
+      ],
+      "properties": {
+        "keyVaultId": "[variables('certKeyVaultId')]",
+        "keyVaultSecretName": "[variables('appServiceSslCertificateName')]",
+        "serverFarmId": "[resourceId('Microsoft.Web/serverFarms', variables('appServicePlanName'))]"
+      }
+    },
+    <#}#>
+    {
+      "name": "[variables('appServicePlanAutoScaleSettingsName')]",
+      "type": "microsoft.insights/autoscalesettings",
+      "dependsOn": [
+        "[concat('Microsoft.Web/serverfarms/', variables('appServicePlanName'))]"
+      ],
+      "apiVersion": "2015-04-01",
+      "location": "[resourceGroup().location]",
+      "tags": "[variables('resourceTags')]",
+      "properties": {
+        "enabled": "[variables('enableAppServiceAutoscaling')]",
+        "targetResourceUri": "[variables('appServicePlanResourceId')]",
+        "profiles": [
+          {
+            "name": "DefaultAutoscaleProfile",
+            "capacity": {
+              "minimum": "1",
+              "maximum": "10",
+              "default": "1"
+            },
+            "rules": [
+              {
+                "metricTrigger": {
+                  "metricName": "CpuPercentage",
+                  "metricNamespace": "",
+                  "metricResourceUri": "[variables('appServicePlanResourceId')]",
+                  "operator": "GreaterThan",
+                  "statistic": "Average",
+                  "threshold": 65,
+                  "timeAggregation": "Average",
+                  "timeGrain": "PT1M",
+                  "timeWindow": "PT5M"
+                },
+                "scaleAction": {
+                  "direction": "Increase",
+                  "type": "ChangeCount",
+                  "value": "1",
+                  "cooldown": "PT5M"
+                }
+              },
+              {
+                "metricTrigger": {
+                  "metricName": "CpuPercentage",
+                  "metricNamespace": "",
+                  "metricResourceUri": "[variables('appServicePlanResourceId')]",
+                  "operator": "LessThan",
+                  "statistic": "Average",
+                  "threshold": 45,
+                  "timeAggregation": "Average",
+                  "timeGrain": "PT1M",
+                  "timeWindow": "PT5M"
+                },
+                "scaleAction": {
+                  "direction": "Decrease",
+                  "type": "ChangeCount",
+                  "value": "1",
+                  "cooldown": "PT5M"
+                }
+              }
+            ]
+          }
+        ],
+        "notifications": [
+          {
+            "operation": "Scale",
+            "email": {
+              "sendToSubscriptionAdministrator": true,
+              "sendToSubscriptionCoAdministrators": false,
+              "customEmails": "[variables('appServicePlanAutoScaleEmailNotificationContacts')]"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "[variables('appServiceName')]",
+      "type": "Microsoft.Web/sites",
+      "apiVersion": "2019-08-01",
+       "location": "[resourceGroup().location]",
+      "tags": "[variables('resourceTags')]",
+      "kind": "functionapp",
+      "dependsOn": [
+        "[concat('Microsoft.Web/serverfarms/', variables('appServicePlanName'))]",
+        "[concat('Microsoft.Insights/components/', variables('apiAppInsightsName'))]"
+      ],
+      "identity": {
+        "type": "SystemAssigned"
+      },
+      "properties": {
+        "clientAffinityEnabled": true,
+        "clientCertEnabled": false,
+        "containerSize": 1536,
+        "dailyMemoryTimeQuota": 0,
+        "enabled": true,
+        "hostNamesDisabled": false,
+        "hostNameSslStates": [
+          {
+            "name": "[concat(variables('appName'), '.azurewebsites.net')]",
+            "sslState": "Disabled",
+            "hostType": "Standard"
+          },
+          {
+            "name": "[concat(variables('appName'), '.scm.azurewebsites.net')]",
+            "sslState": "Disabled",
+            "hostType": "Repository"
+          }
+        ],
+        "httpsOnly": false,
+        "hyperV": false,
+        "isXenon": false,
+        "redundancyMode": "None",
+        "reserved": false,
+        "scmSiteAlsoStopped": false,
+        "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', variables('appServicePlanName'))]",
+        "siteConfig": {
+          "numberOfWorkers": 1,
+          "defaultDocuments": [
+            "Default.htm",
+            "Default.html",
+            "Default.asp",
+            "index.htm",
+            "index.html",
+            "iisstart.htm",
+            "default.aspx",
+            "index.php"
+          ],
+          "netFrameworkVersion": "v4.0",
+          "phpVersion": "5.6",
+          "requestTracingEnabled": false,
+          "remoteDebuggingEnabled": false,
+          "remoteDebuggingVersion": "VS2019",
+          "httpLoggingEnabled": false,
+          "logsDirectorySizeLimit": 35,
+          "detailedErrorLoggingEnabled": false,
+          "publishingUsername": "[concat('$', variables('appName'))]",
+          "scmType": "None",
+          "use32BitWorkerProcess": true,
+          "webSocketsEnabled": false,
+          "alwaysOn": false,
+          "managedPipelineMode": "Integrated",
+          <# if (dotnetcore) {#>
+          "metadata": [
+            {
+              "name": "CURRENT_STACK",
+              "value": "dotnetcore"
+            }
+          ],
+          <#}#>
+          "experiments": {
+            "rampUpRules": []
+          },
+          "autoHealEnabled": false,
+          "cors": {
+            "allowedOrigins": [
+              "https://functions.azure.com",
+              "https://functions-staging.azure.com",
+              "https://functions-next.azure.com"
+            ],
+            "supportCredentials": false
+          },
+          "localMySqlEnabled": false,
+          <# if (!isContainer) {#>
+          "virtualApplications": [
+            {
+                "virtualPath": "/",
+                "physicalPath": "site\\wwwroot",
+                "preloadEnabled": false
+            }
+          ]
+          <#}#>
+        },
+        "http20Enabled": false,
+        "minTlsVersion": "1.2",
+        "alwaysOn": true,
+        <# if (islinux && dotnetcore) {#>
+        "linuxFxVersion": "DOTNETCORE|<#=dotnetversion #>",
+        <#}#>
+        "ftpsState": "AllAllowed",
+        "reservedInstanceCount": 0
+      },
+      "resources": [
+      ]
+    },
+    <# if (customDns) {#>
+    {
+      "type": "Microsoft.Web/sites/hostnameBindings",
+      "name": "[concat(variables('appServiceName'), '/', variables('appServiceCustomHostname'))]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/Sites', variables('appServiceName'))]"
+      ],
+      "apiVersion": "2019-08-01",
+      "location": "[resourceGroup().location]",
+      "properties": {
+        "sslState": "SniEnabled",
+        "thumbprint": "[reference(resourceId('Microsoft.Web/certificates', variables('appServiceSslCertificateName')), '2019-08-01').Thumbprint]"
+      }
+    },
+    <#}#>
+    <# if (useVnetIntegration) {#>
+    {
+        "type": "Microsoft.Web/sites/virtualNetworkConnections",
+        "name": "[concat(variables('appServiceName'), '/<#=appId #>_', variables('subNetName'))]",
+        "dependsOn": [
+            "[resourceId('Microsoft.Web/sites',  variables('appServiceName'))]"
+        ],
+        "apiVersion": "2018-11-01",
+        "location": "[resourceGroup().location]",
+        "properties": {
+            "vnetResourceId": "[concat(variables('vNetName'), '/subnets/', variables('subNetName'))]",
+            "isSwift": true
+        }
+    },
+    {
+        "type": "Microsoft.Web/sites/slots/virtualNetworkConnections",
+        "name": "[concat(variables('appServiceName'), '/', variables('appServiceCustomHostname'), '/<#=appId #>_', variables('subNetName'))]",
+        "dependsOn": [
+            "[resourceId('Microsoft.Web/sites/slots', variables('appServiceName'), variables('appServiceCustomHostname'))]",
+            "[resourceId('Microsoft.Web/sites', variables('appServiceName'))]"
+        ],
+        "apiVersion": "2018-11-01",
+        "location": "[resourceGroup().location]",
+        "properties": {
+            "vnetResourceId": "[concat(variables('vNetName'), '/subnets/', variables('subNetName'))]",
+            "isSwift": true
+        }
+    },
+    <#}#>
+    <# if (hasActionAlerts) {#>
+    {
+      "name": "[parameters('AlertObject').alerts[copyIndex()].alertName]",
+      "type": "Microsoft.Insights/metricAlerts",
+      "location": "global",
+      "condition": "[equals(parameters('Alerts'),'Yes')]",
+      "apiVersion": "2018-03-01",
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/Sites', variables('appServiceName'))]"
+      ],
+      "tags": {},
+      "copy": {
+        "name": "alertsCopy",
+        "count": "[length(parameters('AlertObject').alerts)]"
+      },
+      "properties": {
+        "description": "[parameters('AlertObject').alerts[copyIndex()].alertDescription]",
+        "severity": "[parameters('AlertObject').alerts[copyIndex()].alertSeverity]",
+        "enabled": true,
+        "scopes": [
+          "[resourceID('Microsoft.Web/sites',variables('appServiceName'))]"
+        ],
+        "evaluationFrequency": "[parameters('AlertObject').alerts[copyIndex()].evaluationFrequency]",
+        "windowSize": "[parameters('AlertObject').alerts[copyIndex()].windowSize]",
+        "criteria": {
+          "odata.type": "Microsoft.Azure.Monitor.MultipleResourceMultipleMetricCriteria",
+          "allOf": [
+            {
+              "criterionType": "DynamicThresholdCriterion",
+              "name": "1st criterion",
+              "metricName": "[parameters('AlertObject').alerts[copyIndex()].metricName]",
+              "dimensions": [
+                {
+                  "name": "[parameters('AlertObject').alerts[copyIndex()].dimensionName]",
+                  "operator": "Include",
+                  "values": [
+                    "*"
+                  ]
+
+                }
+              ],
+              "operator": "[parameters('AlertObject').alerts[copyIndex()].operator]",
+              "alertSensitivity": "[parameters('AlertObject').alerts[copyIndex()].alertSensitivity]",
+              "failingPeriods": {
+                "numberOfEvaluationPeriods": "[parameters('AlertObject').alerts[copyIndex()].numberOfEvaluationPeriods]",
+                "minFailingPeriodsToAlert": "[parameters('AlertObject').alerts[copyIndex()].minFailingPeriodsToAlert]"
+              },
+              "timeAggregation": "[parameters('AlertObject').alerts[copyIndex()].timeAggregation]"
+            }
+          ]
+        },
+        "actions": [
+          {
+            "actionGroupId": "[resourceId('Microsoft.Insights/actionGroups', parameters('AlertObject').alerts[copyIndex()].actionGroupName)]"
+          }
+        ]
+      }
+    },
+    <#}#>
+    <# if (hasSlots) {#>
+    {
+      "apiVersion": "2019-08-01",
+      "type": "Microsoft.Web/sites/slots",
+      "name": "[concat(variables('appServiceName'), '/', toLower(variables('appServiceBlueSlotName')))]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/Sites', variables('appServiceName'))]"
+      ],
+      "location": "[resourceGroup().location]",
+      "tags": "[variables('resourceTags')]",
+      "kind": "<#=kind #>",
+      "properties": {
+        "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', variables('appServicePlanName'))]",
+        "siteConfig": {
+          <# if (dotnetcore) {#>
+          "metadata": [
+            {
+              "name": "CURRENT_STACK",
+              "value": "dotnetcore"
+            }
+          ],
+          <#}#>
+          "minTlsVersion": 1.2,
+          "alwaysOn": true,
+          "use32BitWorkerProcess": true,
+           <# if (islinux && dotnetcore && !isContainer) {#>
+          "linuxFxVersion": "DOTNETCORE|<#=dotnetversion #>",
+          "appCommandLine": "dotnet /home/site/wwwroot/<#=dotnetstartupdll #>",
+          <#}#>
+          "virtualApplications": [
+            {
+                "virtualPath": "/",
+                "physicalPath": "site\\wwwroot",
+                "preloadEnabled": false
+            }
+          ]
+        },
+        "httpsOnly": true,
+        "clientAffinityEnabled": true
+      },
+      "identity": {
+        "type": "SystemAssigned"
+      }
+    },
+    <# if (customDns) {#>
+    {
+      "type": "Microsoft.Web/sites/slots/hostnameBindings",
+      "name": "[concat(variables('appServiceName'), '/', toLower(variables('appServiceBlueSlotName')), '/', variables('appServiceBlueSlotCustomHostname'))]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/sites/hostnameBindings', variables('appServiceName'), variables('appServiceCustomHostname'))]",
+        "[resourceId('Microsoft.Web/sites/slots/', variables('appServiceName'), variables('appServiceBlueSlotName'))]"
+      ],
+      "apiVersion": "2019-08-01",
+      "location": "[resourceGroup().location]",
+      "properties": {
+        "sslState": "SniEnabled",
+        "thumbprint": "[reference(resourceId('Microsoft.Web/certificates', variables('appServiceSslCertificateName')), '2019-08-01').Thumbprint]"
+      }
+    },
+    <#}}#>
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2018-05-01",
+      "name": "[concat(variables('appServiceName'), '-app-service-configuration')]",
+      "comments": "A nested deployment is used to deploy the app settings into the production and blue slots. A nested deployment is used to allow the deployment of the settings to be conditional.",
+      "dependsOn": [
+        "[concat('Microsoft.Web/sites/', variables('appServiceName'))]"
+      ],
+      "properties": {
+        "mode": "Incremental",
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "parameters": {
+            "deployAppSettings": {
+              "type": "bool"
+            },
+            "appServiceName": {
+              "type": "string"
+            },
+            "appServiceBlueSlotName": {
+              "type": "string"
+            },
+            "appInsightsInstrumentationKey": {
+              "type": "secureString"
+            },
+            "appInsightsConnectionString": {
+              "type": "secureString"
+            },
+            "scmDetectorPageLink": {
+              "type": "string"
+            },
+            "productionSpecificSettings": {
+              "type": "object"
+            },
+            "slotSpecificSettings": {
+              "type": "object"
+            },
+            "appConnectionstrings": {
+              "type": "object"
+            },
+            "slotConnectionstringSettings": {
+              "type": "object"
+            },
+            "serviceBusNamespace": {
+              "type": "String"
+            },
+            "relayResourceGroupName": {
+              "type": "String"
+            },
+            "deploymentLocation": {
+              "type": "String"
+            },
+            "environment": {
+              "type": "String"
+            },
+            "vNetName": {
+              "type": "String"
+            },
+            "subNetName": {
+              "type": "String"
+            }
+          },
+          "variables": {
+            "environment": "[parameters('environment')]",
+            "appServiceName": "[parameters('appServiceName')]",
+            "vNetName": "[parameters('vNetName')]",
+            "subNetName": "[parameters('subNetName')]",
+            "appServiceBlueSlotName": "[parameters('appServiceBlueSlotName')]",
+            "appInsightsInstrumentationKey": "[parameters('appInsightsInstrumentationKey')]",
+            "appInsightsConnectionString": "[parameters('appInsightsConnectionString')]",
+            "scmDetectorPageLink": "[parameters('scmDetectorPageLink')]",
+            "appSettings": {
+            <# if (useVnetIntegration) {#>
+              "WEBSITE_VNET_ROUTE_ALL": "1",  
+            <#}#>
+              "APPINSIGHTS_INSTRUMENTATIONKEY": "[variables('appInsightsInstrumentationKey')]",
+              "APPLICATIONINSIGHTS_CONNECTION_STRING": "[variables('appInsightsConnectionString')]",
+              "APPINSIGHTS_PROFILERFEATURE_VERSION": "disabled",
+              "APPINSIGHTS_SNAPSHOTFEATURE_VERSION": "disabled",
+              "ApplicationInsightsAgent_EXTENSION_VERSION": "~2",
+              "DiagnosticServices_EXTENSION_VERSION": "disabled",
+              "InstrumentationEngine_EXTENSION_VERSION": "disabled",
+              "SnapshotDebugger_EXTENSION_VERSION": "disabled",
+              "XDT_MicrosoftApplicationInsights_BaseExtensions": "disabled",
+              "XDT_MicrosoftApplicationInsights_Mode": "default"
+            },
+            "autoProductionSpecificSettings": {
+            },
+            "autoSlotSpecificSettings": {
+            },
+            "productionSpecificSettings": "[parameters('productionSpecificSettings')]",
+            "slotSpecificSettings": "[parameters('slotSpecificSettings')]",
+            "appConnectionstrings": "[parameters('appConnectionstrings')]",
+            "slotConnectionstringSettings": "[parameters('slotConnectionstringSettings')]",
+            "deploymentLocation": "[parameters('deploymentLocation')]",
+            "serviceBusNamespace": "[parameters('serviceBusNamespace')]",
+            "relayResourceGroupName": "[parameters('relayResourceGroupName')]"
+          },
+          "resources": [
+            <#
+            for (Int32 ips = 0; ips < data.RelayConfiguration.Length; ++ips) {
+                var relayData = data.RelayConfiguration[ips];
+                var rn = $"concat(variables('environment'), '-', '{relayData}')";
+            #>{
+                "condition": "[equals(bool('true'), parameters('deployAppSettings'))]",
+                "apiVersion": "2018-11-01",
+                "name": "[concat(variables('appServiceName'), '/', variables('serviceBusNamespace'), '/', concat(variables('environment'), '-', '<#=rn #>'))]",
+                "type": "Microsoft.Web/sites/hybridConnectionNamespaces/relays",
+                "comments": "Deploy relay",
+                "properties": {
+                    "serviceBusNamespace": "[variables('serviceBusNamespace')]",
+                    "relayName": "[concat(variables('environment'), '-', '<#=relayData #>')]",
+                    "relayArmUri": "[resourceId(parameters('relayResourceGroupName'), 'Microsoft.Relay/Namespaces/Hybridconnections', parameters('serviceBusNamespace'), '<#=rn #>')]",
+                    "hostName": "[split(json(reference(resourceId(parameters('relayResourceGroupName'), 'Microsoft.Relay/Namespaces/Hybridconnections', parameters('serviceBusNamespace'), '<#=rn #>'), '2016-07-01').userMetadata)[0].value, ':')[0]]",
+                    "port": "[split(json(reference(resourceId(parameters('relayResourceGroupName'), 'Microsoft.Relay/Namespaces/Hybridconnections', parameters('serviceBusNamespace'), '<#=rn #>'), '2016-07-01').userMetadata)[0].value, ':')[1]]",
+                    "sendKeyName": "defaultSender",
+                    "sendKeyValue": "[listkeys(concat(resourceId(parameters('relayResourceGroupName'), 'Microsoft.Relay/Namespaces/Hybridconnections', parameters('serviceBusNamespace'), '<#=rn #>'), '/authorizationRules/defaultSender'), '2017-04-01').primaryKey]"
+                }
+            },
+            <# if (hasSlots) {#>
+            {
+                "condition": "[equals(bool('true'), parameters('deployAppSettings'))]",
+                "apiVersion": "2018-11-01",
+                "name": "[concat(variables('appServiceName'), '/', toLower(variables('appServiceBlueSlotName')), '/', variables('serviceBusNamespace'), '/', '<#=relayData #>')]",
+                "type": "Microsoft.Web/sites/slots/hybridConnectionNamespaces/relays",
+                "comments": "Deploy relay",
+                "properties": {
+                    "serviceBusNamespace": "[variables('serviceBusNamespace')]",
+                    "relayName": "[concat(variables('environment'), '-', '<#=relayData #>')]",
+                    "relayArmUri": "[resourceId(parameters('relayResourceGroupName'), 'Microsoft.Relay/Namespaces/Hybridconnections', parameters('serviceBusNamespace'), '<#=rn #>')]",
+                    "hostName": "[split(json(reference(resourceId(parameters('relayResourceGroupName'), 'Microsoft.Relay/Namespaces/Hybridconnections', parameters('serviceBusNamespace'), '<#=rn #>'), '2016-07-01').userMetadata)[0].value, ':')[0]]",
+                    "port": "[split(json(reference(resourceId(parameters('relayResourceGroupName'), 'Microsoft.Relay/Namespaces/Hybridconnections', parameters('serviceBusNamespace'), '<#=rn #>'), '2016-07-01').userMetadata)[0].value, ':')[1]]",
+                    "sendKeyName": "defaultSender",
+                    "sendKeyValue": "[listkeys(concat(resourceId(parameters('relayResourceGroupName'), 'Microsoft.Relay/Namespaces/Hybridconnections', parameters('serviceBusNamespace'), '<#=rn #>'), '/authorizationRules/defaultSender'), '2017-04-01').primaryKey]"
+                 }
+            },
+            <#}}#>
+
+            <# if (hasSlots) {#>
+            {
+              "condition": "[equals(bool('true'), parameters('deployAppSettings'))]",
+              "apiVersion": "2019-08-01",
+              "type": "Microsoft.Web/sites/slots/config",
+              "name": "[concat(variables('appServiceName'), '/', toLower(variables('appServiceBlueSlotName')), '/', 'appsettings')]",
+              "comments": "Deploy the app settings to the blue slot. This is only done when the slotSwapStatus for the app is null. This ensures that the first deployment of the template sets all resources up correctly, and ensures that future deploys (once at least one slot swap has happened) do not deploy settings into the blue slot.",
+              "properties": "[union(variables('appSettings'), variables('autoSlotSpecificSettings'), variables('slotSpecificSettings'))]"
+            },
+            {
+              "condition": "[equals(bool('true'), parameters('deployAppSettings'))]",
+              "apiVersion": "2019-08-01",
+              "type": "Microsoft.Web/sites/slots/config",
+              "name": "[concat(variables('appServiceName'), '/', toLower(variables('appServiceBlueSlotName')), '/', 'connectionstrings')]",
+              "comments": "Deploy the connectionstring settings to the custom slot.",
+              "properties": "[variables('slotConnectionstringSettings')]"
+            },
+            {
+              "condition": "[equals(bool('true'), parameters('deployAppSettings'))]",
+              "apiVersion": "2019-08-01",
+              "type": "Microsoft.Web/sites/slots/config",
+              "name": "[concat(variables('appServiceName'), '/', toLower(variables('appServiceBlueSlotName')), '/', 'web')]",
+              "comments": "ipSecurityRestrictions for custom slot.",
+              "properties": {
+                <# if (!string.IsNullOrEmpty(ipSecurityRestrictions)) {#>
+                  "ipSecurityRestrictions": [
+                      {
+                        "ipAddress": "<#=ipSecurityRestrictions #>",
+                        "action": "Allow",
+                        "tag": "Default",
+                        "priority": 101,
+                        "name": "Allow Internal Traffic Only",
+                        "description": "<#=internalNetworkName #>"
+                      }
+                    ],
+                    "scmIpSecurityRestrictions": [
+                      {
+                        "ipAddress": "<#=ipSecurityRestrictions #>",
+                        "action": "Allow",
+                        "tag": "Default",
+                        "priority": 100,
+                        "name": "Allow Internal Traffic Only",
+                        "description": "<#=internalNetworkName #>"
+                      }
+                    ],
+                <#}#>
+                "scmIpSecurityRestrictionsUseMain": "false"
+              }
+            },
+            <#}#>
+            {
+              "condition": "[equals(bool('true'), parameters('deployAppSettings'))]",
+              "apiVersion": "2018-11-01",
+              "name": "[concat(variables('appServiceName') ,'/appsettings')]",
+              "type": "Microsoft.Web/sites/config",
+              "comments": "Deploy the app settings to the production slot. This is only done when the slotSwapStatus for the api app is null. This ensures that the first deployment of the template sets all resources up correctly, and ensures that future deploys (once at least one slot swap has happened) do not deploy directly into the production slot.",
+              "properties": "[union(variables('appSettings'), variables('autoProductionSpecificSettings'), variables('productionSpecificSettings'))]"
+            },
+            {
+              "condition": "[equals(bool('true'), parameters('deployAppSettings'))]",
+              "apiVersion": "2018-11-01",
+              "name": "[concat(variables('appServiceName') ,'/connectionstrings')]",
+              "type": "Microsoft.Web/sites/config",
+              "comments": "Deploy the connectionstring settings to the production slot.",
+              "properties": "[variables('appConnectionstrings')]"
+            },
+            {
+              "condition": "[equals(bool('true'), parameters('deployAppSettings'))]",
+              "apiVersion": "2018-11-01",
+              "name": "[concat(variables('appServiceName') ,'/slotconfignames')]",
+              "type": "Microsoft.Web/sites/config",
+              "properties": {
+                "appSettingNames": []
+              }
+            }
+          ],
+          "outputs": {
+          }
+        },
+        "parameters": {
+          "deployAppSettings": {
+            "value": true
+          },
+          "appServiceName": {
+            "value": "[variables('appServiceName')]"
+          },
+          "vNetName": {
+            "value": "[variables('vNetName')]"
+          },
+          "subNetName": {
+            "value": "[variables('subNetName')]"
+          },
+          "appServiceBlueSlotName": {
+            "value": "[variables('appServiceBlueSlotName')]"
+          },
+          "appInsightsInstrumentationKey": {
+            "value": "[reference(resourceId('Microsoft.Insights/components', variables('apiAppInsightsName')), '2015-05-01').InstrumentationKey]"
+          },
+          "appInsightsConnectionString": {
+            "value": "[reference(resourceId('Microsoft.Insights/components', variables('apiAppInsightsName')), '2015-05-01').ConnectionString]"
+          },
+          "scmDetectorPageLink": {
+            "value": "[variables('scmDetectorPageLink')]"
+          },
+          "productionSpecificSettings": {
+            "value": "[variables('productionSpecificSettings')]"
+          },
+          "slotSpecificSettings": {
+            "value": "[variables('slotSpecificSettings')]"
+          },
+          "appConnectionstrings": {
+            "value": "[variables('appConnectionstrings')]"
+          },
+          "slotConnectionstringSettings": {
+            "value": "[variables('slotConnectionstringSettings')]"
+          },
+          "serviceBusNamespace": {
+            "value": "[variables('serviceBusNamespace')]"
+          },
+          "relayResourceGroupName": {
+            "value": "[variables('relayResourceGroupName')]"
+          },
+          "deploymentLocation": {
+            "value": "[variables('deploymentLocation')]"
+          },
+          "environment": {
+            "value": "[variables('environment')]"
+          }
+        }
+      }
+    }
+  ],
+  "outputs": {
+  }
+}
+
+
+<#
+// END TEMPLATE CODE
+
+SaveOutputToSubFolder(codeGenPath, $"{data.Id}\\{data.TeamName.ToLower()}-{data.Name.ToLower()}-infra\\ArmTemplate", "azuredeploy.json");    
+#>
+
+
+<#+
+private void SaveOutputToSubFolder(string rootTemplatePath, string folderName, string outputFileName) {
+  string templateDirectory = Path.GetDirectoryName(rootTemplatePath.Replace('\\', Path.DirectorySeparatorChar));
+  string newDirectoryName = Path.Combine(templateDirectory,folderName.Replace('\\', Path.DirectorySeparatorChar));
+  if(!Directory.Exists(newDirectoryName))
+  {  
+	Directory.CreateDirectory(newDirectoryName);
+  }
+  string outputFilePath = Path.Combine(newDirectoryName, outputFileName.Replace('\\', Path.DirectorySeparatorChar));
+  File.WriteAllText(outputFilePath, this.GenerationEnvironment.ToString()); 
+  this.GenerationEnvironment.Remove(0, this.GenerationEnvironment.Length);
+}
+
+private readonly string deployment;
+private readonly string rootTemplatePath;
+public AzureFunctionDeployment(string deployment, string rootTemplatePath) {
+    this.deployment = deployment;
+    this.rootTemplatePath = rootTemplatePath;
+}
+#>

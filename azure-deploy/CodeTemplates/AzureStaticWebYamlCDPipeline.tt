@@ -1,0 +1,269 @@
+﻿<#@ template language="C#" #>
+<#@ assembly name="System.Core" #>
+<#@ import namespace="System.Linq" #>
+<#@ import namespace="System.Text" #>
+<#@ import namespace="System.Collections.Generic" #>
+<#@ import namespace="System" #>
+<#@ import namespace="System.IO" #>
+<#@ import namespace="System.Globalization" #>
+<#@ import namespace="Newtonsoft.Json" #>
+<#@ import namespace="Newtonsoft.Json.Converters" #>
+
+<#@ output extension=".txt" #>
+
+<#
+Deployment data = JsonConvert.DeserializeObject<Deployment>(this.deployment);
+
+var stages = data.WebDeploymentStages;
+var defaultLocation = data.DefaultLocation;
+var poolName = data.PoolName;
+var vmImage = string.IsNullOrEmpty(data.VmImage) ? "" : $"vmimage: {data.VmImage}";
+var teamName = data.TeamName;
+var appName = data.Name;
+
+// DO NOT WIPE THE SOURCE CODE...
+var codeGenPath = $"{this.rootTemplatePath}codegen\\";
+
+// TEMPLATE CODE HERE
+#>
+name: $(BuildID)
+
+pool: 
+  name: <#=poolName #>
+  <#=vmImage #>
+
+trigger:
+- develop
+- releases/*
+- master
+
+stages:
+<#
+// provision deployment stages   
+for (Int32 i = 0; i < stages.Length; ++i) {
+	var stage = stages[i];
+    
+    var subscriptionId = stage.SubscriptionId;
+    var deploymentLocation = stage.DeploymentLocation;
+    var deploymentLocationName = stage.DeploymentLocationName;
+    var location = stage.DeploymentLocationShort;
+    var azureServiceConnectionName = stage.AzureServiceConnectionName;
+    var resourceGroup = stage.ResourceGroup;
+    var environment = stage.Environment;
+    var customCondition = "eq(variables['Build.SourceBranch'], '')";
+    var storageAccountName = $"{teamName}{environment}{location}{appName}sa";
+    var storageAccountNameBlue = $"{teamName}{environment}{location}{appName}bluesa";
+    var cdnProfileName = $"{teamName}-{environment}-{appName}-cdn";
+    var cdnProfileNameBlue = $"{teamName}-{environment}-{appName}-blue-cdn";
+    var endPointName = $"{cdnProfileName}/{cdnProfileName}";
+    var endPointNameBlue = $"{cdnProfileNameBlue}/{cdnProfileNameBlue}";
+    var domain = stage.AppServiceCustomHostname;
+    var domainBlue = stage.AppServiceBlueSlotCustomHostname;
+    var buildSourceBranch = stage.BuildSourceBranch;
+    var certKeyVaultRG = stage.CertKeyVaultRG;
+    var certKeyVaultName = stage.CertKeyVaultName;
+    var certKeySecretName = stage.CertKeyVaultSecret;
+    var certKeySecretVersion = stage.CertKeyVaultVersion;
+
+    if (environment.ToLower() == "int") {
+        customCondition = "eq(variables['Build.SourceBranch'], 'refs/heads/develop')";
+    #>  - stage: VALIDATE
+    jobs:
+    - deployment: Validation
+      displayName: Validate Template
+      environment: <#=environment.ToLower() #>     
+    - job: VALIDATE
+      condition: and(succeeded(), and(eq(variables['Build.SourceBranch'], 'refs/heads/develop'), eq(variables['Deploy'], 'true')))
+      steps:
+      - task: AzureResourceGroupDeployment@2
+        displayName: 'Validate Template'
+        inputs:
+          azureSubscription: '<#=azureServiceConnectionName #>'
+          resourceGroupName: '<#=resourceGroup #>'
+          location: '<#=deploymentLocationName#>'
+          csmFile: 'ArmTemplate/azuredeploy.storageaccount.json'
+          csmParametersFile: 'ArmTemplate/azuredeploy.storageaccount.parameters.json'
+          overrideParameters: '-Environment int -DeploymentLocation use'
+          deploymentMode: Validation    
+
+      - task: AzureResourceGroupDeployment@2
+        displayName: 'Validate Template'
+        inputs:
+          azureSubscription: '<#=azureServiceConnectionName #>'
+          resourceGroupName: '<#=resourceGroup #>'
+          location: '<#=deploymentLocationName#>'
+          csmFile: ArmTemplate/azuredeploy.cdnProfile.json
+          csmParametersFile: ArmTemplate/azuredeploy.cdnProfile.parameters.json
+          overrideParameters: '-Environment int -OriginHostHeader store.z13.web.core.windows.net'
+          deploymentMode: Validation
+<#}
+    else if (environment.ToLower() == "qa" || environment.ToLower() == "test") {
+        customCondition = "startsWith(variables['Build.SourceBranch'], 'refs/heads/releases/')";
+    }
+    else if (environment.ToLower() == "can") {
+        customCondition = "or(startsWith(variables['Build.SourceBranch'], 'refs/heads/releases/'), eq(variables['Build.SourceBranch'], 'refs/heads/master'))";
+    }
+    else if (environment.ToLower() == "prod") {
+        customCondition = "eq(variables['Build.SourceBranch'], 'refs/heads/master')";
+    } else {
+        customCondition = $"eq(variables['Build.SourceBranch'], {buildSourceBranch})";
+    }
+    #>
+<# if (this.hasSlots) {#>  - stage: <#=stage.Name.ToUpper().Replace("-","_").Replace(".","_") #>_BLUE
+    condition: <#=customCondition #>
+    jobs:
+    - deployment: <#=environment #>DeploymentBlue 
+      displayName: Deploy Template To <#=environment.ToLower() #> 
+      environment: <#=environment.ToLower() #>  
+    - job: deployCdnWithStorageAccountBlue
+      variables:
+        originHostHeaderBlue: ""
+      condition: and(succeeded(), <#=customCondition #>)
+      steps:
+      - task: AzureResourceManagerTemplateDeployment@3
+        displayName: 'ARM Template deployment: Resource Group scope'
+        inputs:
+          azureResourceManagerConnection: '<#=azureServiceConnectionName #>'
+          subscriptionId: '<#=subscriptionId #>'
+          resourceGroupName: '<#=resourceGroup #>'
+          location: '<#=deploymentLocationName#>'
+          templateLocation: 'Linked artifact'
+          csmFile: 'ArmTemplate/azuredeploy.storageaccountblue.json'
+          csmParametersFile: 'ArmTemplate/azuredeploy.storageaccount.parameters.<#= stage.Name #>.json'
+          deploymentMode: Incremental    
+      
+      - task: AzureCLI@2
+        displayName: 'Azure CLI '
+        inputs:
+          azureSubscription: '<#=azureServiceConnectionName #>'
+          scriptType: ps
+          scriptLocation: inlineScript
+          inlineScript: |
+            az storage blob service-properties update --account-name <#=storageAccountNameBlue #> --static-website --404-document 404.html --index-document index.html
+     
+            $originHost = az storage account show --subscription <#=subscriptionId #> -n <#=storageAccountNameBlue #> -g <#=resourceGroup #> --query primaryEndpoints.web --output tsv
+     
+            $originHostHeaderValue = $originHost -replace "https://" -replace "/"
+
+            echo "##vso[task.setvariable variable=originHostHeader;]$originHostHeaderValue"
+          addSpnToEnvironment: true
+          useGlobalConfig: true  
+
+      - task: AzureResourceManagerTemplateDeployment@3
+        displayName: 'ARM Template deployment: Resource Group scope'
+        inputs:
+          azureResourceManagerConnection: '<#=azureServiceConnectionName #>'
+          subscriptionId: '<#=subscriptionId #>'
+          resourceGroupName: '<#=resourceGroup #>'
+          location: '<#=deploymentLocationName#>'
+          templateLocation: 'Linked artifact'
+          csmFile: 'ArmTemplate/azuredeploy.cdnProfile-blue.json'
+          csmParametersFile: 'ArmTemplate/azuredeploy.cdnProfile.parameters.<#= stage.Name #>.json'
+          overrideParameters: '-OriginHostHeader $(originHostHeaderBlue)'
+          deploymentMode: Incremental
+
+      - task: AzureCLI@2
+        displayName: 'Azure CLI '
+        inputs:
+          azureSubscription: '<#=azureServiceConnectionName #>'
+          scriptType: ps
+          scriptLocation: inlineScript
+          inlineScript: |
+            az cdn custom-domain enable-https -g "<#=resourceGroup #>" --endpoint-name "<#=cdnProfileNameBlue #>" --profile-name "<#=cdnProfileNameBlue #>" -n "<#=cdnProfileNameBlue #>" --min-tls-version 1.2 --subscription <#=subscriptionId #> --user-cert-group-name <#=certKeyVaultRG #> --user-cert-vault-name <#=certKeyVaultName #> --user-cert-protocol-type sni --user-cert-secret-name <#=certKeySecretName #> --user-cert-secret-version <#= certKeySecretVersion #> --user-cert-subscription-id <#=subscriptionId #>
+
+          addSpnToEnvironment: true
+          useGlobalConfig: true
+<#}#>  - stage: <#=stage.Name.ToUpper().Replace("-","_").Replace(".","_") #>
+    condition: <#=customCondition #>
+    jobs:
+    - deployment: <#=environment #>deployCdnWithStorageAccount 
+      displayName: Deploy Template To <#=environment.ToLower() #> 
+      environment: <#=environment.ToLower() #>  
+    - job: deployStorageAccount
+      variables:
+        originHostHeader: ""
+      condition: and(succeeded(), <#=customCondition #>)
+      steps:
+      - task: AzureResourceManagerTemplateDeployment@3
+        displayName: 'ARM Template deployment: Resource Group scope'
+        inputs:
+          azureResourceManagerConnection: '<#=azureServiceConnectionName #>'
+          subscriptionId: '<#=subscriptionId #>'
+          resourceGroupName: '<#=resourceGroup #>'
+          location: '<#=deploymentLocationName#>'
+          templateLocation: 'Linked artifact'
+          csmFile: 'ArmTemplate/azuredeploy.storageaccount.json'
+          csmParametersFile: 'ArmTemplate/azuredeploy.storageaccount.parameters.<#= stage.Name #>.json'
+          deploymentMode: Incremental
+
+      - task: AzureCLI@2
+        displayName: 'Azure CLI '
+        inputs:
+          azureSubscription: '<#=azureServiceConnectionName #>'
+          scriptType: ps
+          scriptLocation: inlineScript
+          inlineScript: |
+            az storage blob service-properties update --account-name <#=storageAccountName #> --static-website --404-document 404.html --index-document index.html
+     
+            $originHost = az storage account show --subscription <#=subscriptionId #> -n <#=storageAccountName #> -g <#=resourceGroup #> --query primaryEndpoints.web --output tsv
+     
+            $originHostHeaderValue = $originHost -replace "https://" -replace "/"
+     
+            echo "##vso[task.setvariable variable=originHostHeader;]$originHostHeaderValue"
+          addSpnToEnvironment: true
+          useGlobalConfig: true  
+    
+      - task: AzureResourceManagerTemplateDeployment@3
+        displayName: 'ARM Template deployment: Resource Group scope'
+        inputs:
+          azureResourceManagerConnection: '<#=azureServiceConnectionName #>'
+          subscriptionId: '<#=subscriptionId #>'
+          resourceGroupName: '<#=resourceGroup #>'
+          location: '<#=deploymentLocationName#>'
+          templateLocation: 'Linked artifact'
+          csmFile: 'ArmTemplate/azuredeploy.cdnProfile.json'
+          csmParametersFile: 'ArmTemplate/azuredeploy.cdnProfile.parameters.<#= stage.Name #>.json'
+          overrideParameters: '-OriginHostHeader $(originHostHeader)'
+          deploymentMode: Incremental
+    
+      - task: AzureCLI@2
+        displayName: 'Azure CLI '
+        inputs:
+          azureSubscription: '<#=azureServiceConnectionName #>'
+          scriptType: ps
+          scriptLocation: inlineScript
+          inlineScript: |
+            az cdn custom-domain enable-https -g "<#=resourceGroup #>" --endpoint-name "<#=cdnProfileName #>" --profile-name "<#=cdnProfileName #>" -n "<#=cdnProfileName #>" --min-tls-version 1.2 --subscription <#=subscriptionId #> --user-cert-group-name <#=certKeyVaultRG #> --user-cert-vault-name <#=certKeyVaultName #> --user-cert-protocol-type sni --user-cert-secret-name <#=certKeySecretName #> --user-cert-secret-version <#= certKeySecretVersion #> --user-cert-subscription-id <#=subscriptionId #>
+
+          addSpnToEnvironment: true
+          useGlobalConfig: true  
+<#
+    // END TEMPLATE CODE
+}
+
+SaveOutputToSubFolder(codeGenPath, $"{data.Id}\\{data.TeamName.ToLower()}-{data.Name.ToLower()}-infra\\CD", "azure-pipelines.yml");    
+#>
+
+
+<#+
+private void SaveOutputToSubFolder(string rootTemplatePath, string folderName, string outputFileName) {
+  string templateDirectory = Path.GetDirectoryName(rootTemplatePath.Replace('\\', Path.DirectorySeparatorChar));
+  string newDirectoryName = Path.Combine(templateDirectory,folderName.Replace('\\', Path.DirectorySeparatorChar));
+  if(!Directory.Exists(newDirectoryName))
+  {  
+	Directory.CreateDirectory(newDirectoryName);
+  }
+  string outputFilePath = Path.Combine(newDirectoryName, outputFileName.Replace('\\', Path.DirectorySeparatorChar));
+  File.WriteAllText(outputFilePath, this.GenerationEnvironment.ToString()); 
+  this.GenerationEnvironment.Remove(0, this.GenerationEnvironment.Length);
+}
+
+private readonly string deployment;
+private readonly string rootTemplatePath;
+private readonly bool hasSlots;
+public AzureStaticWebYamlCDPipeline(string deployment, string rootTemplatePath, bool hasSlots) {
+    this.deployment = deployment;
+    this.rootTemplatePath = rootTemplatePath;
+    this.hasSlots = hasSlots;
+}
+#>

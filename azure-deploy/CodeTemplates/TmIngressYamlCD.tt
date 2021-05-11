@@ -1,0 +1,122 @@
+﻿<#@ template language="C#" #>
+<#@ assembly name="System.Core" #>
+<#@ import namespace="System.Linq" #>
+<#@ import namespace="System.Text" #>
+<#@ import namespace="System.Collections.Generic" #>
+<#@ import namespace="System" #>
+<#@ import namespace="System.IO" #>
+<#@ import namespace="System.Globalization" #>
+<#@ import namespace="Newtonsoft.Json" #>
+<#@ import namespace="Newtonsoft.Json.Converters" #>
+
+<#@ output extension=".txt" #>
+
+<#
+Deployment data = JsonConvert.DeserializeObject<Deployment>(this.deployment);
+
+var stages = data.TmDeploymentStages;
+var poolName = data.PoolName;
+var vmImage = string.IsNullOrEmpty(data.VmImage) ? "" : $"vmimage: {data.VmImage}";
+
+// DO NOT WIPE THE SOURCE CODE...
+var codeGenPath = $"{this.rootTemplatePath}codegen\\";
+
+// TEMPLATE CODE HERE
+#>
+name: $(BuildID)
+pool: 
+  name: <#=poolName #>
+  <#=vmImage #>
+trigger:
+- develop
+- releases/*
+- master
+
+stages:
+<#
+// provision deployment stages   
+for (Int32 i = 0; i < stages.Length; ++i) {
+	var stage = stages[i];
+    
+    var subscriptionId = stage.SubscriptionId;
+    var deploymentLocationName = stage.DeploymentLocationName;
+    var azureServiceConnectionName = stage.AzureServiceConnectionName;
+    var resourceGroup = stage.ResourceGroup;
+    var environment = stage.Environment;
+    var customCondition = "eq(variables['Build.SourceBranch'], '')";
+
+    if (environment.ToLower() == "int") {
+        customCondition = "eq(variables['Build.SourceBranch'], 'refs/heads/develop')";
+    #>  - stage: VALIDATE
+    jobs:
+    - deployment: Validation
+      displayName: Validate Template
+      environment: <#=environment.ToLower() #>     
+
+    - job: VALIDATE
+      condition: and(succeeded(), and(eq(variables['Build.SourceBranch'], 'refs/heads/develop'), eq(variables['Deploy'], 'true')))
+      steps:
+      - task: AzureResourceGroupDeployment@2
+        displayName: 'Validate Template'
+        inputs:
+          azureSubscription: '<#=azureServiceConnectionName #>'
+          resourceGroupName: '<#=resourceGroup #>'
+          location: '<#=deploymentLocationName#>'
+          csmFile: 'ArmTemplate/azuredeploy.trafficmanager.<#=stage.Name #>.json'
+          deploymentMode: Validation
+    <#}
+    else if (environment.ToLower() == "qa" || environment.ToLower() == "test") {
+        customCondition = "startsWith(variables['Build.SourceBranch'], 'refs/heads/releases/')";
+    }
+    else if (environment.ToLower() == "can") {
+        customCondition = "or(startsWith(variables['Build.SourceBranch'], 'refs/heads/releases/'), eq(variables['Build.SourceBranch'], 'refs/heads/master'))";
+    }
+    else if (environment.ToLower() == "prod") {
+        customCondition = "eq(variables['Build.SourceBranch'], 'refs/heads/master')";
+    }#>  - stage: <#=stage.Name.ToUpper().Replace("-","_").Replace(".","_") #>
+    condition: <#=customCondition #>
+    jobs:
+    - deployment: <#=environment #>Deployment 
+      displayName: Deploy Template To <#=environment.ToLower() #> 
+      environment: <#=environment.ToLower() #>  
+
+    - job: deploy
+      condition: and(succeeded(), <#=customCondition #>)
+      steps:
+      - task: AzureResourceManagerTemplateDeployment@3
+        displayName: 'ARM Template deployment: Resource Group scope'
+        inputs:
+          azureResourceManagerConnection: '<#=azureServiceConnectionName #>'
+          subscriptionId: '<#=subscriptionId #>'
+          resourceGroupName: '<#=resourceGroup #>'
+          location: '<#=deploymentLocationName#>'
+          templateLocation: 'Linked artifact'
+          csmFile: 'ArmTemplate/azuredeploy.trafficmanager.<#=stage.Name #>.json'
+          deploymentMode: Incremental
+<#
+    // END TEMPLATE CODE
+}
+
+SaveOutputToSubFolder(codeGenPath, $"{data.Id}\\{data.TeamName.ToLower()}-ingress-infra\\CD", "azure-pipelines.yml");    
+#>
+
+<#+
+private void SaveOutputToSubFolder(string rootTemplatePath, string folderName, string outputFileName) {
+  string templateDirectory = Path.GetDirectoryName(rootTemplatePath.Replace('\\', Path.DirectorySeparatorChar));
+  string newDirectoryName = Path.Combine(templateDirectory,folderName.Replace('\\', Path.DirectorySeparatorChar));
+  if(!Directory.Exists(newDirectoryName))
+  {  
+	Directory.CreateDirectory(newDirectoryName);
+  }
+  string outputFilePath = Path.Combine(newDirectoryName, outputFileName.Replace('\\', Path.DirectorySeparatorChar));
+  File.WriteAllText(outputFilePath, this.GenerationEnvironment.ToString()); 
+  this.GenerationEnvironment.Remove(0, this.GenerationEnvironment.Length);
+}
+
+private readonly string deployment;
+private readonly string rootTemplatePath;
+public TmIngressYamlCD(string deployment, string rootTemplatePath) {
+    this.deployment = deployment;
+    this.rootTemplatePath = rootTemplatePath;
+}
+#>

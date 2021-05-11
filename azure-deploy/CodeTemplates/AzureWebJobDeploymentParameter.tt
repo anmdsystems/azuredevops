@@ -1,0 +1,115 @@
+﻿<#@ template language="C#" #>
+<#@ assembly name="System.Core" #>
+<#@ import namespace="System.Linq" #>
+<#@ import namespace="System.Text" #>
+<#@ import namespace="System.Collections.Generic" #>
+<#@ import namespace="System" #>
+<#@ import namespace="System.IO" #>
+<#@ import namespace="System.Globalization" #>
+<#@ import namespace="Newtonsoft.Json" #>
+<#@ import namespace="Newtonsoft.Json.Converters" #>
+
+<#@ output extension=".txt" #>
+
+<#
+// DO NOT WIPE THE SOURCE CODE...
+var codeGenPath = $"{this.rootTemplatePath}codegen\\";
+Deployment data = JsonConvert.DeserializeObject<Deployment>(this.deployment);
+
+// TEMPLATE CODE HERE
+#>{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "Environment" : {
+      "value": ""
+    },
+    "AppServicePlanSku": {
+      "value": "S1"
+    },
+    "AppServicePlanTier": {
+      "value": "Standard"
+    },
+    "AppServicePlanInstanceCount": {
+      "value": 1
+    },
+    "EnableAppServiceAutoscaling": {
+      "value": false
+    },
+    "KeyVaultTenantId": {
+      "value": ""
+    },
+    "DeploymentLocation": {
+      "value": "eastus"
+    },
+    "CertKeyVaultRG": {
+      "value": ""
+    },
+    "CertKeyVaultName": {
+      "value": ""
+    },
+    "ProductionSpecificSettings": {
+      "value": {}
+    },
+    "SlotSpecificSettings": {
+      "value": {}
+    },
+    "AppConnectionstrings": {
+      "value": {}
+    },
+    "SlotConnectionstringSettings": {
+      "value": {}
+    },
+    "ServiceBusNamespace": {
+      "value": ""
+    },
+    "RelayResourceGroupName": {
+      "value": ""
+    },
+    "VNetName": {
+      "value": ""
+    },
+    "SubNetName": {
+      "value": ""
+    },
+    "AlertObject": {
+      "value": {
+        "alerts": [
+          {
+            "alertName": "fixed"
+          }
+        ]
+      }
+    },
+    "Alerts":{
+      "value":"No"
+    }
+  }
+}
+<#
+// END TEMPLATE CODE
+
+SaveOutputToSubFolder(codeGenPath, $"{data.Id}\\{data.TeamName.ToLower()}-{data.Name.ToLower()}-infra\\ArmTemplate", "azuredeploy.parameters.json");    
+#>
+
+
+<#+
+private void SaveOutputToSubFolder(string rootTemplatePath, string folderName, string outputFileName) {
+  string templateDirectory = Path.GetDirectoryName(rootTemplatePath.Replace('\\', Path.DirectorySeparatorChar));
+  string newDirectoryName = Path.Combine(templateDirectory,folderName.Replace('\\', Path.DirectorySeparatorChar));
+  if(!Directory.Exists(newDirectoryName))
+  {  
+	Directory.CreateDirectory(newDirectoryName);
+  }
+  string outputFilePath = Path.Combine(newDirectoryName, outputFileName.Replace('\\', Path.DirectorySeparatorChar));
+  File.WriteAllText(outputFilePath, this.GenerationEnvironment.ToString()); 
+  this.GenerationEnvironment.Remove(0, this.GenerationEnvironment.Length);
+}
+
+private readonly string deployment;
+private readonly string rootTemplatePath;
+public AzureWebJobDeploymentParameter(string deployment, string rootTemplatePath) {
+    this.deployment = deployment;
+    this.rootTemplatePath = rootTemplatePath;
+}
+#>

@@ -1,0 +1,295 @@
+﻿<#@ template language="C#" #>
+<#@ assembly name="System.Core" #>
+<#@ import namespace="System.Linq" #>
+<#@ import namespace="System.Text" #>
+<#@ import namespace="System.Collections.Generic" #>
+<#@ import namespace="System" #>
+<#@ import namespace="System.IO" #>
+<#@ import namespace="System.Globalization" #>
+<#@ import namespace="Newtonsoft.Json" #>
+<#@ import namespace="Newtonsoft.Json.Converters" #>
+
+
+<#@ output extension=".txt" #>
+
+<#
+Deployment data = JsonConvert.DeserializeObject<Deployment>(this.deployment);
+
+var ipSecurityRestrictions = data.IpSecurityRestrictions;
+var internalNetworkName = data.InternalNetworkName;
+var application = data.TeamDisplayName;
+var applicationType = data.ApplicationType;
+var owner = data.Owner;
+var teamName = data.TeamName;
+
+var stages = data.AfdDeploymentStages;
+
+// DO NOT WIPE THE SOURCE CODE...
+var codeGenPath = $"{this.rootTemplatePath}codegen\\";
+
+// provision deployment stages   
+for (Int32 i = 0; i < stages.Length; ++i) {
+	var frontendPort = "80";
+    var backendPort = "443";
+    var stage = stages[i];
+    var suffix = stage.Name;
+    var stageFileName = $"azuredeploy.{suffix}.json";
+#>{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {},
+    "variables": {
+        "frontdoors_name": "<#=suffix #>"
+    },
+    "resources": [
+        {
+            "type": "Microsoft.Network/frontdoors",
+            "apiVersion": "2020-05-01",
+            "name": "[variables('frontdoors_name')]",
+            "location": "Global",
+            "tags": {
+              "Environment": "<#= suffix #>",
+              "Application": "<#= application #>",
+              "Owner": "<#=owner #>"
+            },
+            "properties": {
+                "resourceState": "Enabled",
+                "backendPools": [
+                <# 
+                    int ipsb = 0;    
+                    foreach (var step in stage.AfdDeploymentSteps)
+                    {
+                        var grComma = (stage.AfdDeploymentSteps.Length == ipsb) ? "" : ",";
+                        ipsb++;
+                        
+                        var cookieBasedAffinity = step.CookieBasedAffinity;
+                        var affinityCookieName = step.AffinityCookieName;
+                        var firewallMode = step.FirewallMode;
+                        var groups = step.BackendAddressPools.GroupBy(s => s.Type);
+                        foreach (var groupBy in groups)
+                        {
+                          var env = groupBy.Key.Replace(".","-");
+                          #>{
+                            "id": "[concat(resourceId('Microsoft.Network/frontdoors', variables('frontdoors_name')), concat('/BackendPools/', variables('frontdoors_name'), '-backends-<#=env #>'))]",
+                            "name": "[concat(variables('frontdoors_name'), '-backends-', '<#=env #>')]",
+                            "properties": {
+                                "backends": [
+                                <#
+                                int ipse = 0;
+                                foreach (var group in groupBy) {
+                                    var count = groupBy.Count();
+                                    var comma = (ipse == count - 1) ? "" : ",";
+                                    ipse++;
+                                    var azureWebUrl = group.Value;
+                                    var backEndName = group.Type;
+                                    #>
+                                    {
+                                        "address": "<#=azureWebUrl #>",
+                                        "httpPort": <#=frontendPort #>,
+                                        "httpsPort": <#=backendPort #>,
+                                        "priority": 1,
+                                        "weight": <#= 100/count #>,
+                                        "backendHostHeader": "<#=backEndName #>",
+                                        "enabledState": "Enabled"
+                                    }<#=comma #>
+                                <#}#>
+                                ],
+                                "healthProbeSettings": {
+                                    "id": "[concat(resourceId('Microsoft.Network/frontdoors', variables('frontdoors_name')), '/healthprobesettings/healthprobesettings-<#=env #>')]"
+                                },
+                                "loadBalancingSettings": {
+                                    "id": "[concat(resourceId('Microsoft.Network/frontdoors', variables('frontdoors_name')), '/loadbalancingsettings/loadbalancingsettings-<#=env #>')]"
+                                },
+                                "resourceState": "Enabled"
+                            }
+                        }<#=grComma #>      
+                    <#}}#>
+                ],
+                "healthProbeSettings": [
+                <# 
+                int ipsProbe = 0;
+                foreach (var step in stage.AfdDeploymentSteps)
+                {
+                    var grComma = (stage.AfdDeploymentSteps.Length == ipsProbe) ? "" : ",";
+                    var groupsProbe = step.BackendAddressPools.GroupBy(s => s.Type);
+                    ipsProbe++;
+                    
+                    foreach (var groupBy in groupsProbe)
+                    {
+                        var env = groupBy.Key.Replace(".","-");
+                        #>{
+                            "id": "[concat(resourceId('Microsoft.Network/frontdoors', variables('frontdoors_name')), '/HealthProbeSettings/healthprobesettings-<#=env #>')]",
+                            "name": "healthprobesettings-<#=env #>",
+                            "properties": {
+                                "intervalInSeconds": 30,
+                                "path": "/",
+                                "protocol": "Https",
+                                "resourceState": "Enabled",
+                                "enabledState": "Enabled",
+                                "healthProbeMethod": "Head"
+                            }
+                        }<#=grComma #>      
+                <#}}#>
+                ],
+                "frontendEndpoints": [
+                    {
+                        "id": "[concat(resourceId('Microsoft.Network/frontdoors', variables('frontdoors_name')), concat('/FrontendEndpoints/', variables('frontdoors_name'), '-azurefd-net'))]",
+                        "name": "[concat(variables('frontdoors_name'), '-azurefd-net')]",
+                        "properties": {
+                            "hostName": "[concat(variables('frontdoors_name'), '.azurefd.net')]",
+                            "sessionAffinityEnabledState": "Disabled",
+                            "sessionAffinityTtlSeconds": 0,
+                            "resourceState": "Enabled"
+                        }
+                    },
+                    <# 
+                    var ipsFE = 0;
+                    foreach (var step in stage.AfdDeploymentSteps)
+                    {
+                        var grComma = (stage.AfdDeploymentSteps.Length == ipsFE) ? "" : ",";    
+                        var groupsFE = step.BackendAddressPools.GroupBy(s => s.Type);
+                        ipsFE++;
+                        
+                        foreach (var groupBy in groupsFE)
+                        {
+                            var hostName = groupBy.Key;
+                            var env = groupBy.Key.Replace(".","-");
+                            var feData = groupBy.First();
+                            var certKeyVaultName = feData.CertKeyVaultName;
+                            var certKeyVaultSecret = feData.CertKeyVaultSecret;
+                            var certKeyVaultVersion = feData.CertKeyVaultVersion;
+                            var certKeyVaultResourceGroupName = feData.CertKeyVaultResourceGroupName;
+                            var sessionAffinityState = feData.SessionAffinityState;
+                            var existingFrontend = feData.ExistingFrontend;
+
+                            if (string.IsNullOrEmpty(existingFrontend)) {
+                            #>{
+                                "id": "[concat(resourceId('Microsoft.Network/frontdoors', variables('frontdoors_name')), '/FrontendEndpoints/<#=env #>')]",
+                                "name": "<#=env #>",
+                                "properties": {
+                                    "hostName": "<#=hostName #>",
+                                    "sessionAffinityEnabledState": "<#=sessionAffinityState #>",
+                                    "sessionAffinityTtlSeconds": 0,
+                                    "resourceState": "Enabled",
+                                    "customHttpsConfiguration": {
+                                        "certificateSource": "AzureKeyVault",        
+                                        "minimumTlsVersion":"1.2",
+                                        "protocolType": "ServerNameIndication",
+                                        "keyVaultCertificateSourceParameters": {
+                                          "secretName": "<#=certKeyVaultSecret #>",
+                                          "secretVersion": "<#=certKeyVaultVersion #>",
+                                          "vault": {
+                                            "id": "[resourceId('<#=certKeyVaultResourceGroupName #>','Microsoft.KeyVault/vaults', '<#=certKeyVaultName #>')]"
+                                          }
+                                        }
+                                    }
+                                }
+                            }<#=grComma #>      
+                    <#}}}#>
+                ],
+                "loadBalancingSettings": [
+                    <# 
+                    var ipsLB = 0;
+                        
+                    foreach (var step in stage.AfdDeploymentSteps)
+                    {
+                        var grComma = (stage.AfdDeploymentSteps.Length == ipsLB) ? "" : ",";  
+                        var groupsLB = step.BackendAddressPools.GroupBy(s => s.Type);
+                        ipsLB++;
+                        
+                        foreach (var groupBy in groupsLB)
+                        {
+                            
+                            var env = groupBy.Key.Replace(".","-");
+                            #>{
+                            "id": "[concat(resourceId('Microsoft.Network/frontdoors', variables('frontdoors_name')), '/LoadBalancingSettings/loadBalancingSettings-<#=env #>')]",
+                            "name": "loadBalancingSettings-<#=env #>",
+                            "properties": {
+                                "additionalLatencyMilliseconds": 1000,
+                                "sampleSize": 1,
+                                "successfulSamplesRequired": 1,
+                                "resourceState": "Enabled"
+                            }
+                        }<#=grComma #>      
+                    <#}}#>
+                ],
+                "routingRules": [
+                    <#
+                    var ips = 0;
+                        
+                    foreach (var step in stage.AfdDeploymentSteps)
+                    {
+                        var grComma = (stage.AfdDeploymentSteps.Length == ips) ? "" : ",";  
+                        ips++;
+                        
+                        var groupsRR = step.BackendAddressPools.GroupBy(s => s.Type);
+                        foreach (var groupBy in groupsRR)
+                        {
+                            var env = groupBy.Key.Replace(".","-");
+                            var feData = groupBy.First();
+                            var fePoint = (string.IsNullOrEmpty(feData.ExistingFrontend)) ? env : feData.ExistingFrontend.Replace(".","-");
+                            var patternsToMatch = feData.PatternsToMatch;
+                            #>{
+                            "id": "[concat(resourceId('Microsoft.Network/frontdoors', variables('frontdoors_name')), '/RoutingRules/<#=env #>-rule')]",
+                            "name": "<#=env #>-rule",
+                            "properties": {
+                                "frontendEndpoints": [
+                                    {
+                                        "id": "[concat(resourceId('Microsoft.Network/frontdoors', variables('frontdoors_name')), '/frontendendpoints/<#=fePoint #>')]"
+                                    }
+                                ],
+                                "acceptedProtocols": [
+                                    "Http",
+                                    "Https"
+                                ],
+                                "patternsToMatch": [
+                                    "<#=patternsToMatch #>"
+                                ],
+                                "enabledState": "Enabled",
+                                "resourceState": "Enabled",
+                                "routeConfiguration": {
+                                    "@odata.type": "#Microsoft.Azure.FrontDoor.Models.FrontdoorForwardingConfiguration",
+                                    "forwardingProtocol": "HttpsOnly",
+                                    "backendPool": {
+                                        "id": "[concat(resourceId('Microsoft.Network/frontdoors', variables('frontdoors_name')), concat('/BackendPools/', variables('frontdoors_name'), '-backends-<#=env #>'))]"
+                                    }
+                                }
+                            }
+                        }<#=grComma #>      
+                    <#}}#>
+                ],
+                "backendPoolsSettings": {
+                    "enforceCertificateNameCheck": "Enabled",
+                    "sendRecvTimeoutSeconds": 30
+                },
+                "enabledState": "Enabled",
+                "friendlyName": "[variables('frontdoors_name')]"
+            }
+        }
+    ]
+}
+<#
+SaveOutputToSubFolder(codeGenPath, $"{data.Id}\\{data.TeamName.ToLower()}-ingress-infra\\ArmTemplate", stageFileName);    
+}
+#>
+
+<#+
+private void SaveOutputToSubFolder(string rootTemplatePath, string folderName, string outputFileName) {
+  string templateDirectory = Path.GetDirectoryName(rootTemplatePath.Replace('\\', Path.DirectorySeparatorChar));
+  string newDirectoryName = Path.Combine(templateDirectory,folderName.Replace('\\', Path.DirectorySeparatorChar));
+  if(!Directory.Exists(newDirectoryName))
+  {  
+	Directory.CreateDirectory(newDirectoryName);
+  }
+  string outputFilePath = Path.Combine(newDirectoryName, outputFileName.Replace('\\', Path.DirectorySeparatorChar));
+  File.WriteAllText(outputFilePath, this.GenerationEnvironment.ToString()); 
+  this.GenerationEnvironment.Remove(0, this.GenerationEnvironment.Length);
+}
+
+private readonly string deployment;
+private readonly string rootTemplatePath;
+public AFDIngressDeployment(string deployment, string rootTemplatePath) {
+    this.deployment = deployment;
+    this.rootTemplatePath = rootTemplatePath;
+}
+#>
